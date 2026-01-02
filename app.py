@@ -1,11 +1,8 @@
-# app.py
 """
-Workforce Analytics & Employee Management System
-- Professional single-page dashboard
-- Role-based login (Admin, Manager, HR, Employee)
-- Employee CRUD & CSV import
-- Mood tracking, Task management, Feedback
-- Workforce analytics dashboards & PDF export
+Workforce Intelligence System
+- Role-based workforce analytics platform
+- Modular architecture
+- 2026–2028 ready
 """
 
 import streamlit as st
@@ -14,27 +11,43 @@ import matplotlib.pyplot as plt
 import datetime
 import random
 import io
+import importlib
 
+# -------------------------
 # Local utilities
+# -------------------------
 from utils import database as db
 from utils.auth import require_login, logout_user, show_role_badge
-from utils.analytics import get_summary, department_distribution, gender_ratio, average_salary_by_dept
+from utils.analytics import (
+    get_summary,
+    department_distribution,
+    gender_ratio,
+    average_salary_by_dept
+)
 from utils.pdf_export import generate_summary_pdf
 
-st.set_page_config(page_title="Workforce Analytics System", page_icon="👩‍💼", layout="wide")
+# -------------------------
+# Page config
+# -------------------------
+st.set_page_config(
+    page_title="Workforce Intelligence System",
+    page_icon="🏢",
+    layout="wide"
+)
 
 # -------------------------
 # Initialize Database
 # -------------------------
 try:
-    db.create_tables()  # Use create_tables() instead of initialize_all_tables
+    db.initialize_all_tables()
+    db.create_default_admin()   # 🔑 CRITICAL
 except Exception as e:
-    st.error("❌ Failed to initialize database.")
+    st.error("❌ Database initialization failed")
     st.exception(e)
     st.stop()
 
 # -------------------------
-# Login / Role Badge / Logout
+# Authentication
 # -------------------------
 require_login()
 show_role_badge()
@@ -54,10 +67,10 @@ except Exception as e:
     st.exception(e)
 
 # -------------------------
-# Auto-generate employees if DB empty
+# Auto-generate demo employees
 # -------------------------
 if df.empty:
-    st.info("No employees found. Generating dataset...")
+    st.info("Generating demo workforce data...")
 
     def generate_employees(n=80):
         depts = ["HR", "IT", "Sales", "Finance", "Marketing", "Support"]
@@ -69,7 +82,11 @@ if df.empty:
             "Marketing": ["Marketing Executive", "Marketing Manager"],
             "Support": ["Support Executive", "Support Manager"]
         }
-        skills = ["Python", "SQL", "Excel", "PowerPoint", "Communication", "Leadership", "Analytics", "JavaScript"]
+        skills = [
+            "Python", "SQL", "Excel", "Power BI",
+            "Communication", "Leadership", "Analytics", "JavaScript"
+        ]
+
         names_m = ["John", "Alex", "Michael", "David", "Chris", "Liam"]
         names_f = ["Sophia", "Emma", "Chloe", "Ava", "Mia", "Isabella"]
 
@@ -78,180 +95,149 @@ if df.empty:
             gender = random.choice(["Male", "Female"])
             name = random.choice(names_m if gender == "Male" else names_f)
             dept = random.choice(depts)
-            role_c = random.choice(roles[dept])
-            age = random.randint(22, 60)
-            salary = random.randint(30000, 120000)
-            location = random.choice(["Bangalore", "Delhi", "Mumbai", "Chennai", "Hyderabad"])
-            join_dt = (datetime.datetime.now() - datetime.timedelta(days=random.randint(200, 3000))).strftime("%Y-%m-%d")
-            status = random.choices(["Active", "Resigned"], weights=[80,20])[0]
-            resign_dt = ""
-            if status == "Resigned":
-                resign_dt = (datetime.datetime.now() - datetime.timedelta(days=random.randint(30, 500))).strftime("%Y-%m-%d")
-            emp = {
+
+            employees.append({
                 "Name": name,
-                "Age": age,
+                "Age": random.randint(22, 60),
                 "Gender": gender,
                 "Department": dept,
-                "Role": role_c,
+                "Role": random.choice(roles[dept]),
                 "Skills": ", ".join(random.sample(skills, 3)),
-                "Join_Date": join_dt,
-                "Resign_Date": resign_dt,
-                "Status": status,
-                "Salary": salary,
-                "Location": location
-            }
-            employees.append(emp)
+                "Join_Date": (
+                    datetime.datetime.now()
+                    - datetime.timedelta(days=random.randint(200, 3000))
+                ).strftime("%Y-%m-%d"),
+                "Resign_Date": "",
+                "Status": "Active",
+                "Salary": random.randint(30000, 120000),
+                "Location": random.choice(
+                    ["Bangalore", "Delhi", "Mumbai", "Chennai", "Hyderabad"]
+                )
+            })
+
         return pd.DataFrame(employees)
 
-    df_gen = generate_employees(80)
-    for _, row in df_gen.iterrows():
+    gen_df = generate_employees()
+    for _, row in gen_df.iterrows():
         db.add_employee(row.to_dict())
+
     df = db.fetch_employees()
-    st.success("✔ Realistic employees generated.")
+    st.success("✅ Demo workforce created successfully")
 
 # -------------------------
-# Role-Based Sidebar Tabs
+# Sidebar Navigation
 # -------------------------
-tabs = []
 if role in ["Admin", "Manager", "HR"]:
-    tabs = ["Employees", "Tasks", "Mood Tracker", "Feedback", "Analytics"]
-elif role == "Employee":
-    tabs = ["Tasks", "Mood Tracker", "Feedback", "Analytics"]
+    modules = [
+        "Employees",
+        "Tasks",
+        "Mood Tracker",
+        "Feedback",
+        "Projects",
+        "Attendance",
+        "Notifications",
+        "Analytics"
+    ]
+else:
+    modules = [
+        "Tasks",
+        "Mood Tracker",
+        "Feedback",
+        "Attendance",
+        "Notifications",
+        "Analytics"
+    ]
 
-tab = st.sidebar.radio("Select Module", tabs)
+selected = st.sidebar.radio("📂 Modules", modules)
 
 # -------------------------
-# Employees Module
+# Routing
 # -------------------------
-if tab == "Employees" and role in ["Admin", "Manager", "HR"]:
+if selected == "Employees" and role in ["Admin", "Manager", "HR"]:
     st.header("👩‍💼 Employee Management")
+    st.dataframe(
+        df[["Emp_ID", "Name", "Department", "Role", "Status", "Join_Date"]],
+        height=500
+    )
 
-    # Filters
-    st.sidebar.header("Filters")
-    f_dept   = st.sidebar.selectbox("Department", ["All"] + sorted(df["Department"].dropna().unique()))
-    f_status = st.sidebar.selectbox("Status", ["All"] + sorted(df["Status"].dropna().unique()))
-    f_gender = st.sidebar.selectbox("Gender", ["All", "Male", "Female"])
-    f_role   = st.sidebar.selectbox("Role", ["All"] + sorted(df["Role"].dropna().unique()))
+elif selected == "Tasks":
+    from pages import tasks
+    tasks.show()
 
-    filtered = df.copy()
-    if f_dept != "All": filtered = filtered[filtered["Department"] == f_dept]
-    if f_status != "All": filtered = filtered[filtered["Status"] == f_status]
-    if f_gender != "All": filtered = filtered[filtered["Gender"] == f_gender]
-    if f_role != "All": filtered = filtered[filtered["Role"] == f_role]
+elif selected == "Mood Tracker":
+    from pages import mood_tracker
+    mood_tracker.show()
 
-    search = st.text_input("Search by Name / Role / Skills / ID").lower().strip()
-    disp = filtered.copy()
-    if search:
-        mask = (
-            disp["Name"].astype(str).str.lower().str.contains(search, na=False) |
-            disp["Role"].astype(str).str.lower().str.contains(search, na=False) |
-            disp["Skills"].astype(str).str.lower().str.contains(search, na=False) |
-            disp["Emp_ID"].astype(str).str.contains(search, na=False)
-        )
-        disp = disp[mask]
+elif selected == "Feedback":
+    from pages import feedback
+    feedback.show()
 
-    st.dataframe(disp[["Emp_ID","Name","Department","Role","Join_Date","Status"]], height=400)
+elif selected == "Projects":
+    projects = importlib.import_module("pages.10_Projects")
+    projects.show()
 
-    # CSV Upload
-    st.subheader("📁 Import Employees CSV")
-    upload = st.file_uploader("Upload CSV", type=["csv"])
-    if upload:
-        try:
-            df_u = pd.read_csv(upload)
-            required_cols = ["Name","Age","Gender","Department","Role","Skills","Join_Date","Resign_Date","Status","Salary","Location"]
-            for col in required_cols:
-                if col not in df_u.columns:
-                    df_u[col] = ""
-            for _, row in df_u.iterrows():
-                db.add_employee(row.to_dict())
-            st.success("CSV imported successfully!")
-        except Exception as e:
-            st.error("CSV import failed.")
-            st.exception(e)
+elif selected == "Attendance":
+    attendance = importlib.import_module("pages.11_Attendance")
+    attendance.show()
 
-# -------------------------
-# Tasks Module
-# -------------------------
-elif tab == "Tasks":
-    from pages import tasks as task
-    task.show()
+elif selected == "Notifications":
+    notifications = importlib.import_module("pages.12_Notifications")
+    notifications.show()
 
-# -------------------------
-# Mood Tracker Module
-# -------------------------
-elif tab == "Mood Tracker":
-    from pages import mood_tracker as mood
-    mood.show()
+elif selected == "Analytics":
+    st.header("📊 Workforce Intelligence Analytics")
 
-# -------------------------
-# Feedback Module
-# -------------------------
-elif tab == "Feedback":
-    from pages import feedback as fb
-    fb.show()
+    summary = get_summary(df)
 
-# -------------------------
-# Analytics Module
-# -------------------------
-elif tab == "Analytics":
-    st.header("📊 Workforce Analytics & Summary")
-    filtered = df.copy()
-    summary = get_summary(filtered)
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Employees", summary["total"])
     c2.metric("Active", summary["active"])
     c3.metric("Resigned", summary["resigned"])
 
-    # Department Distribution
-    dept_counts = department_distribution(filtered)
-    fig, ax = plt.subplots(figsize=(8,4))
-    ax.bar(dept_counts.index, dept_counts.values)
-    ax.set_xlabel("Department")
-    ax.set_ylabel("Employees")
-    ax.set_title("Employees by Department")
+    # Department distribution
+    dept = department_distribution(df)
+    fig1, ax1 = plt.subplots()
+    ax1.bar(dept.index, dept.values)
+    ax1.set_title("Employees by Department")
     plt.xticks(rotation=30)
-    st.pyplot(fig)
+    st.pyplot(fig1)
 
-    # Gender Ratio
-    g = gender_ratio(filtered)
-    fig2, ax2 = plt.subplots(figsize=(5,5))
+    # Gender ratio
+    g = gender_ratio(df)
+    fig2, ax2 = plt.subplots()
     ax2.pie(g.values, labels=g.index, autopct="%1.1f%%")
-    ax2.set_title("Gender Split")
+    ax2.set_title("Gender Ratio")
     st.pyplot(fig2)
 
-    # Average Salary
-    sal = average_salary_by_dept(filtered)
-    fig3, ax3 = plt.subplots(figsize=(8,4))
+    # Salary
+    sal = average_salary_by_dept(df)
+    fig3, ax3 = plt.subplots()
     ax3.bar(sal.index, sal.values)
-    ax3.set_xlabel("Department")
-    ax3.set_ylabel("Average Salary")
-    ax3.set_title("Department-wise Salary")
+    ax3.set_title("Average Salary by Department")
     plt.xticks(rotation=30)
     st.pyplot(fig3)
 
     # PDF Export
-    st.subheader("📄 Export PDF Summary")
-    pdf_buffer = io.BytesIO()
+    st.subheader("📄 Export Report")
+    buffer = io.BytesIO()
+
     if st.button("Generate PDF"):
-        try:
-            generate_summary_pdf(
-                buffer=pdf_buffer,
-                total=summary["total"],
-                active=summary["active"],
-                resigned=summary["resigned"],
-                df=filtered,
-                mood_df=db.fetch_mood_logs(),
-                dept_fig=fig,
-                gender_fig=fig2,
-                salary_fig=fig3,
-                title="Workforce Summary Report"
-            )
-            st.download_button(
-                label="Download PDF",
-                data=pdf_buffer,
-                file_name="workforce_summary_report.pdf",
-                mime="application/pdf"
-            )
-        except Exception as e:
-            st.error("Failed to generate PDF.")
-            st.exception(e)
+        generate_summary_pdf(
+            buffer=buffer,
+            total=summary["total"],
+            active=summary["active"],
+            resigned=summary["resigned"],
+            df=df,
+            mood_df=db.fetch_mood(),
+            dept_fig=fig1,
+            gender_fig=fig2,
+            salary_fig=fig3,
+            title="Workforce Intelligence Report"
+        )
+
+        st.download_button(
+            "Download PDF",
+            buffer,
+            file_name="workforce_report.pdf",
+            mime="application/pdf"
+        )
