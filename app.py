@@ -2,38 +2,29 @@
 Workforce Intelligence System
 - Role-based workforce analytics platform
 - Modular architecture
+- Streamlit native pages
 - 2026–2028 ready
 """
 
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import datetime
 import random
-import io
-import importlib
 
 # -------------------------
-# Local utilities
-# -------------------------
-from utils import database as db
-from utils.auth import require_login, logout_user, show_role_badge
-from utils.analytics import (
-    get_summary,
-    department_distribution,
-    gender_ratio,
-    average_salary_by_dept
-)
-from utils.pdf_export import generate_summary_pdf
-
-# -------------------------
-# Page config
+# Page config (MUST be first Streamlit call)
 # -------------------------
 st.set_page_config(
     page_title="Workforce Intelligence System",
     page_icon="🏢",
     layout="wide"
 )
+
+# -------------------------
+# Local utilities
+# -------------------------
+from utils import database as db
+from utils.auth import require_login, logout_user, show_role_badge
 
 # -------------------------
 # Initialize Database
@@ -47,17 +38,25 @@ except Exception as e:
     st.stop()
 
 # -------------------------
-# Authentication
+# Authentication (GLOBAL)
 # -------------------------
 require_login()
-show_role_badge()
-logout_user()
 
 role = st.session_state.get("role", "Employee")
 username = st.session_state.get("user", "Unknown")
 
 # -------------------------
-# Load Employees
+# Global Sidebar (ONLY ONCE)
+# -------------------------
+with st.sidebar:
+    st.title("🏢 Workforce System")
+    st.write(f"👤 **{username}**")
+    show_role_badge()
+    st.divider()
+    logout_user()   # single logout button ONLY here
+
+# -------------------------
+# Load Employees (shared data)
 # -------------------------
 try:
     df = db.fetch_employees()
@@ -67,7 +66,7 @@ except Exception as e:
     st.exception(e)
 
 # -------------------------
-# Auto-generate demo employees
+# Auto-generate demo employees (first run only)
 # -------------------------
 if df.empty:
     st.info("Generating demo workforce data...")
@@ -121,123 +120,29 @@ if df.empty:
     for _, row in gen_df.iterrows():
         db.add_employee(row.to_dict())
 
-    df = db.fetch_employees()
     st.success("✅ Demo workforce created successfully")
+    st.rerun()
 
 # -------------------------
-# Sidebar Navigation
+# HOME / DASHBOARD PAGE
 # -------------------------
-if role in ["Admin", "Manager", "HR"]:
-    modules = [
-        "Employees",
-        "Tasks",
-        "Mood Tracker",
-        "Feedback",
-        "Projects",
-        "Attendance",
-        "Notifications",
-        "Analytics"
-    ]
-else:
-    modules = [
-        "Tasks",
-        "Mood Tracker",
-        "Feedback",
-        "Attendance",
-        "Notifications",
-        "Analytics"
-    ]
+st.title("📊 Workforce Intelligence Dashboard")
+st.caption("Central overview of workforce data")
 
-selected = st.sidebar.radio("📂 Modules", modules)
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Employees", len(df))
+c2.metric("Active Employees", (df["Status"] == "Active").sum())
+c3.metric("Departments", df["Department"].nunique())
 
-# -------------------------
-# Routing
-# -------------------------
-if selected == "Employees" and role in ["Admin", "Manager", "HR"]:
-    st.header("👩‍💼 Employee Management")
-    st.dataframe(
-        df[["Emp_ID", "Name", "Department", "Role", "Status", "Join_Date"]],
-        height=500
-    )
+st.subheader("👩‍💼 Recent Employees")
+st.dataframe(
+    df[["Emp_ID", "Name", "Department", "Role", "Status", "Join_Date"]]
+    .sort_values("Join_Date", ascending=False)
+    .head(10),
+    use_container_width=True
+)
 
-elif selected == "Tasks":
-    from pages import tasks
-    tasks.show()
-
-elif selected == "Mood Tracker":
-    from pages import mood_tracker
-    mood_tracker.show()
-
-elif selected == "Feedback":
-    from pages import feedback
-    feedback.show()
-
-elif selected == "Projects":
-    projects = importlib.import_module("pages.10_Projects")
-    projects.show()
-
-elif selected == "Attendance":
-    attendance = importlib.import_module("pages.11_Attendance")
-    attendance.show()
-
-elif selected == "Notifications":
-    notifications = importlib.import_module("pages.12_Notifications")
-    notifications.show()
-
-elif selected == "Analytics":
-    st.header("📊 Workforce Intelligence Analytics")
-
-    summary = get_summary(df)
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Employees", summary["total"])
-    c2.metric("Active", summary["active"])
-    c3.metric("Resigned", summary["resigned"])
-
-    # Department distribution
-    dept = department_distribution(df)
-    fig1, ax1 = plt.subplots()
-    ax1.bar(dept.index, dept.values)
-    ax1.set_title("Employees by Department")
-    plt.xticks(rotation=30)
-    st.pyplot(fig1)
-
-    # Gender ratio
-    g = gender_ratio(df)
-    fig2, ax2 = plt.subplots()
-    ax2.pie(g.values, labels=g.index, autopct="%1.1f%%")
-    ax2.set_title("Gender Ratio")
-    st.pyplot(fig2)
-
-    # Salary
-    sal = average_salary_by_dept(df)
-    fig3, ax3 = plt.subplots()
-    ax3.bar(sal.index, sal.values)
-    ax3.set_title("Average Salary by Department")
-    plt.xticks(rotation=30)
-    st.pyplot(fig3)
-
-    # PDF Export
-    st.subheader("📄 Export Report")
-    buffer = io.BytesIO()
-
-    if st.button("Generate PDF"):
-        generate_summary_pdf(
-            buffer=buffer,
-            total=summary["total"],
-            active=summary["active"],
-            resigned=summary["resigned"],
-            df=df,
-            mood_df=db.fetch_mood(),
-            dept_fig=fig1,
-            gender_fig=fig2,
-            salary_fig=fig3,
-            title="Workforce Intelligence Report"
-        )
-
-        st.download_button(
-            "Download PDF",
-            buffer,
-            file_name="workforce_report.pdf",
-            mime="application/pdf"
-        )
+st.info(
+    "📂 Use the **left sidebar** to navigate modules like Tasks, Attendance, "
+    "Mood Tracker, Projects, Analytics, and more."
+)

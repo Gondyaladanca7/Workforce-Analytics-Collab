@@ -11,7 +11,16 @@ DB_NAME = "workforce.db"
 # DB Connection
 # --------------------------
 def connect_db():
+    """Return a SQLite connection."""
     return sqlite3.connect(DB_NAME, check_same_thread=False)
+
+
+# --------------------------
+# Password Hashing Helper
+# --------------------------
+def hash_password(password: str) -> str:
+    """Return SHA256 hash of a password."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 # --------------------------
@@ -122,42 +131,27 @@ def initialize_all_tables():
 # --------------------------
 # AUTH HELPERS
 # --------------------------
-def hash_password(password: str):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
 def get_user_by_username(username: str):
     conn = connect_db()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-
-    cur.execute(
-        "SELECT * FROM users WHERE username = ?",
-        (username,)
-    )
+    cur.execute("SELECT * FROM users WHERE username=?", (username,))
     row = cur.fetchone()
     conn.close()
-
     return dict(row) if row else None
 
 
 def create_default_admin():
+    """Create default admin if no users exist."""
     conn = connect_db()
     cur = conn.cursor()
-
     cur.execute("SELECT COUNT(*) FROM users")
     count = cur.fetchone()[0]
-
     if count == 0:
         cur.execute("""
             INSERT INTO users (username, password, role)
             VALUES (?, ?, ?)
-        """, (
-            "admin",
-            hash_password("admin123"),
-            "Admin"
-        ))
-
+        """, ("admin", hash_password("admin123"), "Admin"))
     conn.commit()
     conn.close()
 
@@ -180,9 +174,9 @@ def add_employee(emp: dict):
         emp.get("Role"),
         emp.get("Skills"),
         emp.get("Join_Date"),
-        emp.get("Resign_Date"),
-        emp.get("Status"),
-        emp.get("Salary"),
+        emp.get("Resign_Date", ""),
+        emp.get("Status", "Active"),
+        emp.get("Salary", 0),
         emp.get("Location")
     ))
     conn.commit()
@@ -214,7 +208,7 @@ def delete_employee(emp_id: int):
 
 
 # --------------------------
-# TASKS
+# TASKS CRUD
 # --------------------------
 def add_task(task: dict):
     conn = connect_db()
@@ -229,8 +223,8 @@ def add_task(task: dict):
         task.get("assigned_by"),
         task.get("due_date"),
         task.get("priority"),
-        task.get("status"),
-        task.get("remarks")
+        task.get("status", "Pending"),
+        task.get("remarks", "")
     ))
     conn.commit()
     conn.close()
@@ -269,12 +263,7 @@ def add_mood_entry(emp_id: int, mood: str, remarks: str = ""):
     cur.execute("""
         INSERT INTO mood_logs (emp_id, mood, remarks, log_date)
         VALUES (?, ?, ?, ?)
-    """, (
-        emp_id,
-        mood,
-        remarks,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+    """, (emp_id, mood, remarks, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
 
@@ -303,16 +292,9 @@ def add_feedback(sender_id: int, receiver_id: int, message: str, rating: int):
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO feedback
-        (sender_id, receiver_id, message, rating, log_date)
+        INSERT INTO feedback (sender_id, receiver_id, message, rating, log_date)
         VALUES (?, ?, ?, ?, ?)
-    """, (
-        sender_id,
-        receiver_id,
-        message,
-        rating,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+    """, (sender_id, receiver_id, message, rating, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
 
@@ -349,11 +331,7 @@ def add_attendance(emp_id: int, date: str, check_in: str, check_out: str, status
 def fetch_attendance(emp_id=None):
     conn = connect_db()
     if emp_id:
-        df = pd.read_sql(
-            "SELECT * FROM attendance WHERE emp_id=?",
-            conn,
-            params=(emp_id,)
-        )
+        df = pd.read_sql("SELECT * FROM attendance WHERE emp_id=?", conn, params=(emp_id,))
     else:
         df = pd.read_sql("SELECT * FROM attendance", conn)
     conn.close()
@@ -369,22 +347,14 @@ def add_notification(emp_id: int, message: str):
     cur.execute("""
         INSERT INTO notifications (emp_id, message, created_at)
         VALUES (?, ?, ?)
-    """, (
-        emp_id,
-        message,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+    """, (emp_id, message, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
 
 
 def fetch_notifications(emp_id: int):
     conn = connect_db()
-    df = pd.read_sql(
-        "SELECT * FROM notifications WHERE emp_id=? ORDER BY created_at DESC",
-        conn,
-        params=(emp_id,)
-    )
+    df = pd.read_sql("SELECT * FROM notifications WHERE emp_id=? ORDER BY created_at DESC", conn, params=(emp_id,))
     conn.close()
     return df
 
@@ -392,9 +362,6 @@ def fetch_notifications(emp_id: int):
 def mark_notification_read(notif_id: int):
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE notifications SET is_read=1 WHERE notif_id=?",
-        (notif_id,)
-    )
+    cur.execute("UPDATE notifications SET is_read=1 WHERE notif_id=?", (notif_id,))
     conn.commit()
     conn.close()
