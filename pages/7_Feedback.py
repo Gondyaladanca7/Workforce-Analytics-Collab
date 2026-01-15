@@ -149,21 +149,42 @@ def show():
     pdf_buffer = io.BytesIO()
     if st.button("Generate Feedback PDF"):
         try:
+            import matplotlib.pyplot as plt
+
+            fig, ax = plt.subplots(figsize=(6,4))
+            if not feedback_df.empty:
+                emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict()
+                feedback_df["Receiver_Name"] = feedback_df["receiver_id"].map(emp_map).fillna("Unknown")
+                feedback_avg = feedback_df.groupby("Receiver_Name")["rating"].mean().sort_values(ascending=False)
+                feedback_avg.plot(kind="bar", ax=ax, color="skyblue")
+                ax.set_ylabel("Average Rating")
+                ax.set_title("Average Feedback Rating per Employee")
+                plt.tight_layout()
+            else:
+                ax.text(0.5,0.5,"No Feedback Available", ha="center", va="center")
+                ax.axis("off")
+
             generate_summary_pdf(
                 buffer=pdf_buffer,
                 total=len(emp_df),
                 active=len(emp_df[emp_df["Status"]=="Active"]) if "Status" in emp_df.columns else len(emp_df),
                 resigned=len(emp_df[emp_df["Status"]=="Resigned"]) if "Status" in emp_df.columns else 0,
                 df=emp_df,
-                mood_df=None,
+                mood_df=feedback_df,
+                dept_fig=fig,
+                gender_fig=None,
+                salary_fig=None,
                 title="Employee Feedback Report"
             )
+
             st.download_button(
                 label="Download PDF",
                 data=pdf_buffer,
                 file_name="feedback_report.pdf",
                 mime="application/pdf"
             )
+            plt.close(fig)
+
         except Exception as e:
             st.error("Failed to generate PDF.")
             st.exception(e)

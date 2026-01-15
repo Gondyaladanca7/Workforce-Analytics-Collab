@@ -90,13 +90,16 @@ def show():
         y="avg_mood",
         markers=True,
         title="Average Mood Over Time",
-        labels={"avg_mood": "Average Mood"}
+        labels={"avg_mood": "Average Mood", "date":"Date"}
     )
     st.plotly_chart(trend_fig, use_container_width=True)
 
     # Weekly stacked mood chart
     weekly_df = filtered_df.groupby([pd.Grouper(key="DateTime", freq="W"), "mood"]).size().unstack(fill_value=0)
-    weekly_fig = px.bar(weekly_df, x=weekly_df.index, y=weekly_df.columns, title="Weekly Mood Counts", labels={"value":"Count","DateTime":"Week"})
+    weekly_fig = px.bar(
+        weekly_df, x=weekly_df.index, y=weekly_df.columns,
+        title="Weekly Mood Counts", labels={"value":"Count","DateTime":"Week"}
+    )
     st.plotly_chart(weekly_fig, use_container_width=True)
 
     # -------------------------
@@ -145,6 +148,34 @@ def show():
     pdf_buffer = io.BytesIO()
     if st.button("Generate Mood Analytics PDF"):
         try:
+            import matplotlib.pyplot as plt
+            import matplotlib.dates as mdates
+
+            # Trend chart
+            fig_trend, ax1 = plt.subplots(figsize=(6,3))
+            ax1.plot(trend_df["date"], trend_df["avg_mood"], marker='o', color='blue')
+            ax1.set_title("Average Mood Over Time")
+            ax1.set_xlabel("Date")
+            ax1.set_ylabel("Avg Mood (1-4)")
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+            fig_trend.autofmt_xdate()
+
+            # Weekly stacked
+            fig_weekly, ax2 = plt.subplots(figsize=(6,3))
+            weekly_df.plot(kind="bar", stacked=True, ax=ax2)
+            ax2.set_title("Weekly Mood Counts")
+            ax2.set_xlabel("Week")
+            ax2.set_ylabel("Count")
+
+            # Employee-wise Boxplot
+            fig_box, ax3 = plt.subplots(figsize=(6,3))
+            emp_mood_map = filtered_df.copy()
+            emp_mood_map["mood_val"] = emp_mood_map["mood"].map({"😊 Happy":4,"😐 Neutral":3,"😔 Sad":2,"😡 Angry":1})
+            emp_mood_map.boxplot(column="mood_val", by="Employee", ax=ax3)
+            ax3.set_ylabel("Mood (1-4)")
+            ax3.set_title("Mood Comparison by Employee")
+            plt.suptitle("")
+
             generate_summary_pdf(
                 buffer=pdf_buffer,
                 total=filtered_df["Employee"].nunique(),
@@ -152,14 +183,23 @@ def show():
                 resigned=0,
                 df=filtered_df,
                 mood_df=filtered_df,
+                dept_fig=fig_trend,
+                gender_fig=fig_weekly,
+                salary_fig=fig_box,
                 title="Filtered Mood Analytics Report"
             )
+
             st.download_button(
                 label="Download PDF",
                 data=pdf_buffer,
                 file_name="mood_analytics_report.pdf",
                 mime="application/pdf"
             )
+
+            plt.close(fig_trend)
+            plt.close(fig_weekly)
+            plt.close(fig_box)
+
         except Exception as e:
             st.error("Failed to generate PDF.")
             st.exception(e)

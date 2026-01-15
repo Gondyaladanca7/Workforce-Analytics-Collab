@@ -1,12 +1,11 @@
 # pages/12_Notifications.py
-
 import streamlit as st
 import pandas as pd
 import io
+import matplotlib.pyplot as plt
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
 from utils.pdf_export import generate_summary_pdf
-import matplotlib.pyplot as plt
 
 def show():
     require_login()
@@ -83,40 +82,66 @@ def show():
     st.subheader("📊 Notification Analytics")
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Total", len(notif_df))
+        st.metric("Total", len(filtered))
     with col2:
-        st.metric("Unread", (notif_df["is_read"] == 0).sum())
+        st.metric("Unread", (filtered["is_read"] == 0).sum())
 
     # Notifications by type
-    type_counts = notif_df["type"].value_counts()
-    fig, ax = plt.subplots()
-    type_counts.plot(kind="bar", ax=ax, color="skyblue")
-    ax.set_ylabel("Count")
-    ax.set_title("Notifications by Type")
-    st.pyplot(fig, use_container_width=True)
+    type_counts = filtered["type"].value_counts()
+    fig_type, ax_type = plt.subplots()
+    type_counts.plot(kind="bar", ax=ax_type, color="skyblue")
+    ax_type.set_ylabel("Count")
+    ax_type.set_title("Notifications by Type")
+    st.pyplot(fig_type, use_container_width=True)
+    plt.close(fig_type)
 
-    # -----------------------
+    # -------------------------
     # Export PDF
-    # -----------------------
+    # -------------------------
     st.subheader("📄 Export Notifications PDF")
     pdf_buffer = io.BytesIO()
     if st.button("Generate Notifications PDF"):
         try:
+            import matplotlib.pyplot as plt
+
+            # Notifications by Type Chart
+            fig_type, ax1 = plt.subplots(figsize=(6,3))
+            type_counts.plot(kind="bar", ax=ax1, color="skyblue")
+            ax1.set_ylabel("Count")
+            ax1.set_title("Notifications by Type")
+
+            # Notifications by Status Chart
+            status_counts = filtered["is_read"].map({0:"Unread",1:"Read"}).value_counts()
+            fig_status, ax2 = plt.subplots(figsize=(6,3))
+            status_counts.plot(kind="bar", ax=ax2, color="orange")
+            ax2.set_ylabel("Count")
+            ax2.set_title("Notifications by Status")
+
+            # Generate PDF
             generate_summary_pdf(
                 buffer=pdf_buffer,
-                total=len(notif_df),
-                active=(notif_df["is_read"] == 0).sum(),
-                resigned=(notif_df["is_read"] == 1).sum(),
-                df=notif_df,
+                total=len(filtered),
+                active=(filtered["is_read"]==0).sum(),
+                resigned=(filtered["is_read"]==1).sum(),
+                df=filtered,
                 mood_df=None,
+                dept_fig=fig_type,
+                gender_fig=fig_status,
+                salary_fig=None,
                 title="Notifications Report"
             )
+
             st.download_button(
                 label="Download PDF",
                 data=pdf_buffer,
                 file_name="notifications_report.pdf",
                 mime="application/pdf"
             )
+
+            # Close figures
+            plt.close(fig_type)
+            plt.close(fig_status)
+
         except Exception as e:
             st.error("Failed to generate PDF.")
             st.exception(e)

@@ -1,5 +1,3 @@
-# utils/auth.py
-
 import streamlit as st
 from utils import database as db
 import hashlib
@@ -8,7 +6,6 @@ import hashlib
 # Password Hashing
 # -------------------------
 def hash_password(password: str) -> str:
-    """Return SHA256 hash of the password."""
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
@@ -24,58 +21,55 @@ def login(username: str, password: str):
     if not user:
         return False, "User not found"
 
-    stored_hash = user.get("password")
-    input_hash = hash_password(password)
-
-    if input_hash != stored_hash:
+    if hash_password(password) != user["password"]:
         return False, "Invalid password"
 
-    # Store session info
+    # -------------------------
+    # Session State (FIXED)
+    # -------------------------
+    st.session_state.clear()  # 🔥 avoid stale values
+
     st.session_state["logged_in"] = True
     st.session_state["user"] = user["username"]
     st.session_state["role"] = user["role"]
     st.session_state["user_id"] = user["id"]
 
-    # Optional: link username to Emp_ID
+    # -------------------------
+    # Employee ID mapping (CRITICAL FIX)
+    # -------------------------
+    emp_id = None
     try:
-        employees = db.fetch_employees()
-        emp_row = employees[employees["Name"] == username]
-        if not emp_row.empty:
-            st.session_state["my_emp_id"] = int(emp_row.iloc[0]["Emp_ID"])
-        else:
-            st.session_state["my_emp_id"] = None
+        emp_id = db.get_emp_id_by_user_id(user["id"])
     except Exception:
-        st.session_state["my_emp_id"] = None
+        pass
+
+    st.session_state["my_emp_id"] = emp_id
 
     return True, "Login successful"
 
 
 # -------------------------
-# Require login decorator
+# Require Login
 # -------------------------
 def require_login(roles_allowed=None):
-    """
-    Enforce login and optionally role-based access.
-    roles_allowed: list of roles, e.g., ["Admin","Manager"]
-    """
-    if not st.session_state.get("logged_in", False):
+    if not st.session_state.get("logged_in"):
         st.warning("⚠️ Please login to continue")
 
-        username = st.text_input("Username", key="login_user")
-        password = st.text_input("Password", type="password", key="login_pass")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
 
-        if st.button("Login", key="login_btn"):
+        if st.button("Login"):
             success, msg = login(username, password)
             if success:
                 st.success(msg)
+                st.experimental_rerun()
             else:
                 st.error(msg)
 
         st.stop()
 
-    # Role enforcement
     if roles_allowed and st.session_state.get("role") not in roles_allowed:
-        st.error("❌ Access denied. Your role cannot access this page.")
+        st.error("❌ Access denied")
         st.stop()
 
 
@@ -83,25 +77,15 @@ def require_login(roles_allowed=None):
 # Logout
 # -------------------------
 def logout_user():
-    """
-    Logout button for sidebar. Clears session_state keys.
-    Only place this in app.py sidebar to avoid duplicates.
-    """
-    if st.sidebar.button("Logout", key="logout_btn"):
-        keys_to_clear = [
-            "logged_in", "user", "role", "user_id", "my_emp_id"
-        ]
-        for key in keys_to_clear:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.success("Logged out successfully")
-        st.experimental_set_query_params()
+    if st.sidebar.button("Logout"):
+        st.session_state.clear()
+        st.experimental_rerun()
 
 
 # -------------------------
-# Role Badge Display
+# Role Badge
 # -------------------------
 def show_role_badge():
-    role = st.session_state.get("role", "")
+    role = st.session_state.get("role")
     if role:
         st.sidebar.markdown(f"### 🧑‍💼 Role: `{role}`")
