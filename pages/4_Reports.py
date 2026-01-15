@@ -1,20 +1,24 @@
 # pages/4_Reports.py
+"""
+Workforce Analytics Reports — Workforce Intelligence System
+Displays metrics, charts, and generates PDF reports with workforce data.
+"""
+
 import streamlit as st
 import pandas as pd
 from utils import database as db
 from utils.auth import require_login, show_role_badge, logout_user
 from utils.pdf_export import generate_summary_pdf
-import io
+from utils.analytics import get_summary, department_distribution, gender_ratio, average_salary_by_dept
 import matplotlib.pyplot as plt
 import seaborn as sns
-from utils.analytics import get_summary, department_distribution, gender_ratio, average_salary_by_dept
+import io
 
 sns.set_style("whitegrid")
-
-st.set_page_config(page_title="Reports", page_icon="📄", layout="wide")
+st.set_page_config(page_title="Reports", page_icon="📊", layout="wide")
 
 # -------------------------
-# Require login
+# Authentication & Role
 # -------------------------
 require_login()
 show_role_badge()
@@ -24,11 +28,13 @@ role = st.session_state.get("role", "Employee")
 username = st.session_state.get("user", "unknown")
 
 if role not in ["Admin", "Manager"]:
-    st.warning("Access denied. Admin/Manager only.")
+    st.warning("⚠️ Access denied. Admin/Manager only.")
     st.stop()
 
+st.title("📊 Workforce Reports")
+
 # -------------------------
-# Fetch employee and mood data
+# Fetch data
 # -------------------------
 try:
     df = db.fetch_employees()
@@ -43,27 +49,33 @@ except Exception:
 # -------------------------
 # Filters
 # -------------------------
-st.header("📊 Workforce Reports")
+st.sidebar.header("🔍 Filter Options")
+dept_filter = st.sidebar.selectbox("Department", ["All"] + sorted(df["Department"].dropna().unique().tolist()))
+status_filter = st.sidebar.selectbox("Status", ["All"] + sorted(df["Status"].dropna().unique().tolist()))
+role_filter = st.sidebar.selectbox("Role", ["All"] + sorted(df["Role"].dropna().unique().tolist()))
 
-dept_filter = st.selectbox("Filter by Department", ["All"] + sorted(df["Department"].dropna().unique().tolist()))
 filtered_df = df.copy()
 if dept_filter != "All":
     filtered_df = filtered_df[filtered_df["Department"] == dept_filter]
+if status_filter != "All":
+    filtered_df = filtered_df[filtered_df["Status"] == status_filter]
+if role_filter != "All":
+    filtered_df = filtered_df[filtered_df["Role"] == role_filter]
 
 # -------------------------
 # Summary Metrics
 # -------------------------
 summary = get_summary(filtered_df)
-st.metric("Total Employees", summary["total"])
-st.metric("Active Employees", summary["active"])
-st.metric("Resigned Employees", summary["resigned"])
+col1, col2, col3 = st.columns(3)
+col1.metric("Total Employees", summary["total"])
+col2.metric("Active Employees", summary["active"])
+col3.metric("Resigned Employees", summary["resigned"])
 
 st.markdown("---")
 
 # -------------------------
-# Generate Charts
+# Charts
 # -------------------------
-# Department Distribution
 dept_fig = None
 if not filtered_df.empty and "Department" in filtered_df.columns:
     dept_ser = department_distribution(filtered_df)
@@ -76,7 +88,6 @@ if not filtered_df.empty and "Department" in filtered_df.columns:
     st.pyplot(fig, use_container_width=True)
     dept_fig = fig
 
-# Gender Ratio
 gender_fig = None
 if not filtered_df.empty and "Gender" in filtered_df.columns:
     gender_counts = gender_ratio(filtered_df)
@@ -88,7 +99,6 @@ if not filtered_df.empty and "Gender" in filtered_df.columns:
     st.pyplot(fig, use_container_width=True)
     gender_fig = fig
 
-# Average Salary by Department
 salary_fig = None
 if not filtered_df.empty and "Salary" in filtered_df.columns and "Department" in filtered_df.columns:
     avg_salary = average_salary_by_dept(filtered_df)

@@ -3,9 +3,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import datetime
+import io
 
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
+from utils.pdf_export import generate_summary_pdf
 
 def show():
     # -------------------------
@@ -21,7 +23,7 @@ def show():
     # Load Mood Data
     # -------------------------
     try:
-        mood_df = db.fetch_mood_logs()  # fetch_mood_logs() returns emp_id, mood, log_date
+        mood_df = db.fetch_mood_logs()  # emp_id, mood, log_date, remarks
         emp_df = db.fetch_employees()
     except Exception as e:
         st.error("Failed to load mood data or employees.")
@@ -37,8 +39,8 @@ def show():
     mood_df["Employee"] = mood_df["emp_id"].map(emp_map).fillna(mood_df["emp_id"].astype(str))
 
     # Parse dates
-    mood_df["log_date_parsed"] = pd.to_datetime(mood_df["log_date"], errors="coerce")
-    mood_df["date"] = mood_df["log_date_parsed"].dt.date
+    mood_df["DateTime"] = pd.to_datetime(mood_df["log_date"], errors="coerce")
+    mood_df["date"] = mood_df["DateTime"].dt.date
 
     # -------------------------
     # Filters
@@ -55,9 +57,7 @@ def show():
     filtered_df = mood_df.copy()
     if selected_user != "All":
         filtered_df = filtered_df[filtered_df["Employee"] == selected_user]
-    filtered_df = filtered_df[
-        (filtered_df["date"] >= start_date) & (filtered_df["date"] <= end_date)
-    ]
+    filtered_df = filtered_df[(filtered_df["date"] >= start_date) & (filtered_df["date"] <= end_date)]
     filtered_df = filtered_df[filtered_df["mood"].isin(selected_mood)]
 
     if filtered_df.empty:
@@ -94,6 +94,11 @@ def show():
     )
     st.plotly_chart(trend_fig, use_container_width=True)
 
+    # Weekly stacked mood chart
+    weekly_df = filtered_df.groupby([pd.Grouper(key="DateTime", freq="W"), "mood"]).size().unstack(fill_value=0)
+    weekly_fig = px.bar(weekly_df, x=weekly_df.index, y=weekly_df.columns, title="Weekly Mood Counts", labels={"value":"Count","DateTime":"Week"})
+    st.plotly_chart(weekly_fig, use_container_width=True)
+
     # -------------------------
     # Mood Distribution
     # -------------------------
@@ -105,12 +110,7 @@ def show():
         text="Count",
         title="Mood Distribution",
         color="Mood",
-        color_discrete_map={
-            "😊 Happy": "green",
-            "😐 Neutral": "gray",
-            "😔 Sad": "orange",
-            "😡 Angry": "red"
-        }
+        color_discrete_map={"😊 Happy":"green","😐 Neutral":"gray","😔 Sad":"orange","😡 Angry":"red"}
     )
     st.plotly_chart(dist_fig, use_container_width=True)
 
@@ -118,16 +118,13 @@ def show():
     # Employee-wise Comparison
     # -------------------------
     st.markdown("### 🧍 Employee-wise Mood Comparison")
-    emp_avg_df = filtered_df.groupby("Employee")["mood"].apply(
-        lambda x: x.map({"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}).mean()
-    ).reset_index(name="avg_mood")
     box_fig = px.box(
         filtered_df,
         x="Employee",
         y=filtered_df["mood"].map({"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}),
         points="all",
         title="Mood Comparison by Employee",
-        labels={"y": "Mood (1-4)"}
+        labels={"y":"Mood (1-4)"}
     )
     st.plotly_chart(box_fig, use_container_width=True)
 
@@ -137,8 +134,32 @@ def show():
     st.markdown("---")
     st.subheader("🔍 Filtered Mood Data")
     st.dataframe(
-        filtered_df[["Employee", "mood", "remarks", "log_date_parsed"]].sort_values("log_date_parsed", ascending=False).rename(
-            columns={"log_date_parsed": "DateTime"}
-        ),
+        filtered_df[["Employee","mood","remarks","DateTime"]].sort_values("DateTime", ascending=False),
         height=400
     )
+
+    # -------------------------
+    # Export PDF
+    # -------------------------
+    st.subheader("📄 Export Mood Analytics PDF")
+    pdf_buffer = io.BytesIO()
+    if st.button("Generate Mood Analytics PDF"):
+        try:
+            generate_summary_pdf(
+                buffer=pdf_buffer,
+                total=filtered_df["Employee"].nunique(),
+                active=len(filtered_df),
+                resigned=0,
+                df=filtered_df,
+                mood_df=filtered_df,
+                title="Filtered Mood Analytics Report"
+            )
+            st.download_button(
+                label="Download PDF",
+                data=pdf_buffer,
+                file_name="mood_analytics_report.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error("Failed to generate PDF.")
+            st.exception(e)

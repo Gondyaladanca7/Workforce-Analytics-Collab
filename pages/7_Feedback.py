@@ -1,7 +1,11 @@
+# pages/7_Feedback.py
+"""
+Employee Feedback System — Workforce Analytics System
+Submit feedback, view history, analyze ratings, and export PDF reports.
+"""
+
 import streamlit as st
 import pandas as pd
-import datetime
-import matplotlib.pyplot as plt
 import io
 
 from utils.auth import require_login, show_role_badge, logout_user
@@ -25,12 +29,12 @@ def show():
     try:
         emp_df = db.fetch_employees()
     except Exception:
-        emp_df = pd.DataFrame()
+        emp_df = pd.DataFrame(columns=["Emp_ID","Name","Status"])
 
     try:
         feedback_df = db.fetch_feedback()
     except Exception:
-        feedback_df = pd.DataFrame()
+        feedback_df = pd.DataFrame(columns=["feedback_id","sender_id","receiver_id","message","rating","log_date"])
 
     # -------------------------
     # Add Feedback
@@ -90,41 +94,40 @@ def show():
     # -------------------------
     # Edit / Delete Feedback
     # -------------------------
-    if not feedback_display.empty:
-        st.subheader("✏️ Edit / Delete Feedback")
-        editable_feedback = feedback_display.copy()
-        if role != "Admin":
-            editable_feedback = editable_feedback[editable_feedback["Sender"]==username]
+    st.subheader("✏️ Edit / Delete Feedback")
+    editable_feedback = feedback_display.copy()
+    if role != "Admin":
+        # Users can edit/delete only their own feedback
+        editable_feedback = editable_feedback[editable_feedback["Sender"]==username]
 
+    if not editable_feedback.empty:
         feedback_ids = editable_feedback["feedback_id"].astype(str).tolist()
-        if feedback_ids:
-            sel_feedback = st.selectbox("Select Feedback ID", feedback_ids)
-            feedback_row = editable_feedback[editable_feedback["feedback_id"] == int(sel_feedback)].iloc[0].to_dict()
+        sel_feedback = st.selectbox("Select Feedback ID", feedback_ids)
+        feedback_row = editable_feedback[editable_feedback["feedback_id"] == int(sel_feedback)].iloc[0].to_dict()
 
-            with st.form("edit_feedback"):
-                e_message = st.text_area("Message", value=feedback_row.get("message",""))
-                e_rating = st.slider("Rating (1-5)", min_value=1, max_value=5, value=int(feedback_row.get("rating",5)))
-                update_btn = st.form_submit_button("Update Feedback")
-                delete_btn = st.form_submit_button("Delete Feedback")
+        with st.form("edit_feedback"):
+            e_message = st.text_area("Message", value=feedback_row.get("message",""))
+            e_rating = st.slider("Rating (1-5)", min_value=1, max_value=5, value=int(feedback_row.get("rating",5)))
+            update_btn = st.form_submit_button("Update Feedback")
+            delete_btn = st.form_submit_button("Delete Feedback")
 
-                if update_btn:
-                    try:
-                        db.add_feedback(feedback_row["sender_id"], feedback_row["receiver_id"], e_message.strip(), e_rating)
-                        db.delete_feedback(int(sel_feedback))
-                        st.success("Feedback updated successfully.")
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error("Failed to update feedback.")
-                        st.exception(e)
+            if update_btn:
+                try:
+                    db.update_feedback(int(sel_feedback), e_message.strip(), e_rating)
+                    st.success("Feedback updated successfully.")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error("Failed to update feedback.")
+                    st.exception(e)
 
-                if delete_btn:
-                    try:
-                        db.delete_feedback(int(sel_feedback))
-                        st.success("Feedback deleted successfully.")
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error("Failed to delete feedback.")
-                        st.exception(e)
+            if delete_btn:
+                try:
+                    db.delete_feedback(int(sel_feedback))
+                    st.success("Feedback deleted successfully.")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error("Failed to delete feedback.")
+                    st.exception(e)
 
     st.markdown("---")
 
@@ -135,7 +138,7 @@ def show():
     if not feedback_df.empty:
         summary_df = feedback_summary(feedback_df, emp_df)
         st.bar_chart(summary_df.set_index("Employee")["Avg_Rating"])
-        st.write(summary_df)
+        st.dataframe(summary_df)
     else:
         st.info("No feedback available yet.")
 

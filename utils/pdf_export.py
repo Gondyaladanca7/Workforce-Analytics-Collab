@@ -1,4 +1,5 @@
 # utils/pdf_export.py
+
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -9,6 +10,9 @@ import matplotlib.pyplot as plt
 import re
 import pandas as pd
 
+# --------------------------
+# Sanitize text for PDF
+# --------------------------
 def _sanitize_text_for_pdf(s: str) -> str:
     """Replace emojis and non-ASCII chars to avoid PDF errors."""
     if s is None:
@@ -18,6 +22,10 @@ def _sanitize_text_for_pdf(s: str) -> str:
     s = re.sub(r"[^\x00-\x7F]+", " ", s)
     return s
 
+
+# --------------------------
+# Generate Workforce PDF
+# --------------------------
 def generate_summary_pdf(
     buffer,
     total,
@@ -60,6 +68,9 @@ def generate_summary_pdf(
         df_display = df.copy()
         cols_to_show = [c for c in ["Emp_ID","Name","Department","Role","Join_Date","Status"] if c in df_display.columns]
         df_display = df_display[cols_to_show]
+        # Sanitize all string values
+        for col in df_display.select_dtypes(include=["object"]).columns:
+            df_display[col] = df_display[col].astype(str).apply(_sanitize_text_for_pdf)
         data = [cols_to_show] + df_display.values.tolist()
 
         pastel_blue = colors.Color(173/255,216/255,230/255)
@@ -86,6 +97,9 @@ def generate_summary_pdf(
             mood_df_copy["Name"] = mood_df_copy["Employee"]
         mood_cols = [c for c in ["Name","log_date","mood","remarks"] if c in mood_df_copy.columns]
         if len(mood_cols) > 0 and len(mood_df_copy) > 0:
+            # Sanitize all string columns
+            for col in mood_cols:
+                mood_df_copy[col] = mood_df_copy[col].astype(str).apply(_sanitize_text_for_pdf)
             mood_data = [mood_cols] + mood_df_copy[mood_cols].values.tolist()
             t_mood = Table(mood_data,hAlign='LEFT',repeatRows=1)
             t_mood.setStyle(TableStyle([
@@ -112,6 +126,8 @@ def generate_summary_pdf(
                 elements.append(Spacer(1,12))
             except Exception:
                 continue
+            finally:
+                plt.close(fig)  # close figure to free memory
 
     doc.build(elements)
     if isinstance(buffer, io.BytesIO):

@@ -1,13 +1,13 @@
 # pages/11_Attendance.py
-
 import streamlit as st
 import pandas as pd
 import datetime
 import plotly.express as px
+import io
 
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
-
+from utils.pdf_export import generate_summary_pdf
 
 def show():
     require_login()
@@ -33,7 +33,6 @@ def show():
     # Employee Selection
     # -------------------------
     st.subheader("👤 Employee Selection")
-
     if role in ["Admin", "HR", "Manager"]:
         emp_options = ["All"] + (emp_df["Emp_ID"].astype(str) + " - " + emp_df["Name"]).tolist()
         selected_emp = st.selectbox("Select Employee", emp_options)
@@ -46,7 +45,6 @@ def show():
     # Log Attendance
     # -------------------------
     st.subheader("⏰ Log Attendance")
-
     today = datetime.date.today()
     check_in = st.time_input("Check-in Time", value=datetime.time(9, 0))
     check_out = st.time_input("Check-out Time", value=datetime.time(18, 0))
@@ -76,7 +74,6 @@ def show():
     # View Attendance
     # -------------------------
     st.subheader("📅 Attendance History")
-
     start_date = st.date_input("Start Date", today - datetime.timedelta(days=30))
     end_date = st.date_input("End Date", today)
 
@@ -104,15 +101,6 @@ def show():
     # Analytics
     # -------------------------
     st.subheader("📊 Attendance Analytics")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric("Total Records", len(att_df))
-
-    with col2:
-        st.metric("Absents", (att_df["status"] == "Absent").sum())
-
     status_counts = att_df["status"].value_counts()
     st.bar_chart(status_counts)
 
@@ -125,3 +113,36 @@ def show():
         title="Daily Attendance Trend"
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Additional metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Records", len(att_df))
+    col2.metric("Present", (att_df["status"] == "Present").sum())
+    col3.metric("Absent", (att_df["status"] == "Absent").sum())
+    col4.metric("Remote", (att_df["status"] == "Remote").sum())
+    
+    # -------------------------
+    # Export PDF
+    # -------------------------
+    st.subheader("📄 Export Attendance PDF")
+    pdf_buffer = io.BytesIO()
+    if st.button("Generate Attendance PDF"):
+        try:
+            generate_summary_pdf(
+                buffer=pdf_buffer,
+                total=len(att_df),
+                active=(att_df["status"]=="Present").sum(),
+                resigned=(att_df["status"]=="Absent").sum(),
+                df=att_df,
+                mood_df=None,
+                title="Employee Attendance Report"
+            )
+            st.download_button(
+                label="Download PDF",
+                data=pdf_buffer,
+                file_name="attendance_report.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error("Failed to generate PDF.")
+            st.exception(e)

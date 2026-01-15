@@ -1,8 +1,9 @@
-# pages/9_Skills_Roles.py
 import streamlit as st
 import pandas as pd
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
+from utils.pdf_export import generate_summary_pdf
+import io
 
 def show():
     # -------------------------
@@ -42,7 +43,10 @@ def show():
     if role_filter != "All":
         filtered_df = filtered_df[filtered_df["Role"] == role_filter]
     if skill_search:
-        filtered_df = filtered_df[filtered_df["Skills"].str.lower().str.contains(skill_search, na=False)]
+        # Normalize skills separator to handle both ';' and ','
+        filtered_df = filtered_df[
+            filtered_df["Skills"].str.replace(";", ",").str.lower().str.contains(skill_search, na=False)
+        ]
 
     st.subheader("👩‍💼 Employee Skill Inventory")
     st.dataframe(
@@ -57,17 +61,20 @@ def show():
     # -------------------------
     st.subheader("📊 Skill Analytics")
 
-    # Top Skills
-    all_skills = filtered_df["Skills"].dropna().str.split(", ").explode()
-    top_skills = all_skills.value_counts().head(10)
-    st.markdown("**Top 10 Skills Across Employees**")
-    st.bar_chart(top_skills)
+    if not filtered_df.empty:
+        # Top Skills
+        all_skills = filtered_df["Skills"].dropna().str.replace(";", ",").str.split(",").explode().str.strip()
+        top_skills = all_skills.value_counts().head(10)
+        st.markdown("**Top 10 Skills Across Employees**")
+        st.bar_chart(top_skills)
 
-    # Department-wise Skill Distribution
-    st.markdown("**Department-wise Skills Count**")
-    dept_skills = filtered_df.groupby("Department")["Skills"].apply(lambda x: x.str.split(", ").sum())
-    dept_skills = dept_skills.explode().value_counts().sort_values(ascending=False)
-    st.bar_chart(dept_skills)
+        # Department-wise Skill Distribution
+        st.markdown("**Department-wise Skills Count**")
+        dept_skills = filtered_df.groupby("Department")["Skills"].apply(
+            lambda x: x.str.replace(";", ",").str.split(",").sum()
+        )
+        dept_skills = dept_skills.explode().value_counts().sort_values(ascending=False)
+        st.bar_chart(dept_skills)
 
     st.markdown("---")
 
@@ -75,7 +82,6 @@ def show():
     # Role Assignment / Suggestion
     # -------------------------
     st.subheader("🔄 Role Mapping & Suggestions")
-
     emp_selection = st.selectbox("Select Employee", filtered_df["Emp_ID"].astype(str) + " - " + filtered_df["Name"])
     emp_id = int(emp_selection.split(" - ")[0])
     emp_row = emp_df[emp_df["Emp_ID"] == emp_id].iloc[0]
@@ -83,8 +89,8 @@ def show():
     st.markdown(f"**Current Role:** {emp_row['Role']}")
     st.markdown(f"**Skills:** {emp_row['Skills']}")
 
-    # Suggest possible roles based on skills
-    skill_set = set(emp_row["Skills"].split(", "))
+    # Suggest roles based on skills
+    skill_set = set(emp_row["Skills"].replace(";", ",").split(", "))
     role_map = {
         "HR": {"HR Manager", "HR Executive"},
         "IT": {"Developer", "SysAdmin", "IT Manager"},
@@ -97,10 +103,8 @@ def show():
     suggested_roles = []
     for dept, roles in role_map.items():
         for role in roles:
-            # simple skill matching: role name keywords in skills
             if any(word.lower() in skill.lower() for word in role.split() for skill in skill_set):
                 suggested_roles.append(role)
-
     if not suggested_roles:
         suggested_roles = ["No strong match found"]
 
@@ -119,9 +123,37 @@ def show():
             try:
                 db.update_employee(emp_id, {"Role": new_role})
                 st.success(f"Role updated to '{new_role}'")
+                st.session_state["refresh_trigger"] = not st.session_state.get("refresh_trigger", False)
                 st.experimental_rerun()
             except Exception as e:
                 st.error("Failed to update role.")
                 st.exception(e)
         else:
             st.info("Role unchanged.")
+
+    st.markdown("---")
+
+    # -------------------------
+    # Export PDF
+    # -------------------------
+    st.subheader("📄 Export Skill Inventory as PDF")
+    pdf_buffer = io.BytesIO()
+    if st.button("Generate PDF"):
+        try:
+            generate_summary_pdf(
+                buffer=pdf_buffer,
+                total=len(emp_df),
+                active=len(emp_df[emp_df["Status"]=="Active"]) if "Status" in emp_df.columns else len(emp_df),
+                resigned=len(emp_df[emp_df["Status"]=="Resigned"]) if "Status" in emp_df.columns else 0,
+                df=filtered_df,
+                title="Employee Skill & Role Report"
+            )
+            st.download_button(
+                label="Download PDF",
+                data=pdf_buffer,
+                file_name="skill_role_report.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error("Failed to generate PDF.")
+            st.exception(e)

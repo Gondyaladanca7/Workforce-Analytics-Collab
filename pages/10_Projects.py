@@ -1,10 +1,11 @@
-# pages/10_Projects.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
 import datetime
+from utils.pdf_export import generate_summary_pdf
+import io
 
 def show():
     # -------------------------
@@ -20,7 +21,7 @@ def show():
     # Load Project Data
     # -------------------------
     try:
-        project_df = db.fetch_projects()  # columns: project_id, project_name, owner_emp_id, status, progress, start_date, due_date
+        project_df = db.fetch_projects()
         emp_df = db.fetch_employees()
     except Exception as e:
         st.error("Failed to load projects or employee data.")
@@ -73,33 +74,70 @@ def show():
         fig.update_layout(yaxis=dict(range=[0, 100]))
         st.plotly_chart(fig, use_container_width=True)
 
-    # -------------------------
-    # Add / Update Project
-    # -------------------------
     st.markdown("---")
-    st.subheader("➕ Add / Update Project")
+    st.subheader("➕ Add / Edit Project")
+
+    # -------------------------
+    # Select Project to Edit
+    # -------------------------
+    proj_options = ["Add New"] + project_df["project_name"].tolist()
+    selected_proj = st.selectbox("Select Project", proj_options)
+
+    if selected_proj == "Add New":
+        proj_data = {}
+    else:
+        proj_data = project_df[project_df["project_name"] == selected_proj].iloc[0].to_dict()
+
     with st.form("project_form", clear_on_submit=True):
-        proj_name = st.text_input("Project Name")
-        owner = st.selectbox("Project Owner", emp_df["Emp_ID"].astype(str) + " - " + emp_df["Name"])
-        start_date_input = st.date_input("Start Date", value=datetime.date.today())
-        due_date_input = st.date_input("Due Date", value=datetime.date.today() + datetime.timedelta(days=30))
-        progress_input = st.slider("Progress (%)", min_value=0, max_value=100, value=0)
-        status_input = st.selectbox("Status", ["Not Started", "In Progress", "Completed"])
+        proj_name = st.text_input("Project Name", value=proj_data.get("project_name", ""))
+        owner = st.selectbox("Project Owner", emp_df["Emp_ID"].astype(str) + " - " + emp_df["Name"],
+                             index=0 if not proj_data else emp_df.index[emp_df["Emp_ID"]==proj_data["owner_emp_id"]][0])
+        start_date_input = st.date_input("Start Date", value=pd.to_datetime(proj_data.get("start_date", datetime.date.today())).date())
+        due_date_input = st.date_input("Due Date", value=pd.to_datetime(proj_data.get("due_date", datetime.date.today() + datetime.timedelta(days=30))).date())
+        progress_input = st.slider("Progress (%)", min_value=0, max_value=100, value=int(proj_data.get("progress",0)))
+        status_input = st.selectbox("Status", ["Not Started", "In Progress", "Completed"], index=["Not Started","In Progress","Completed"].index(proj_data.get("status","Not Started")))
         submit_btn = st.form_submit_button("Save Project")
 
         if submit_btn:
-            owner_id = int(owner.split(" - ")[0])
-            try:
-                db.add_or_update_project({
-                    "project_name": proj_name,
-                    "owner_emp_id": owner_id,
-                    "status": status_input,
-                    "progress": progress_input,
-                    "start_date": start_date_input.strftime("%Y-%m-%d"),
-                    "due_date": due_date_input.strftime("%Y-%m-%d")
-                })
-                st.success("Project saved successfully.")
-                st.experimental_rerun()
-            except Exception as e:
-                st.error("Failed to save project.")
-                st.exception(e)
+            if not proj_name.strip():
+                st.error("Project name cannot be empty.")
+            else:
+                owner_id = int(owner.split(" - ")[0])
+                try:
+                    db.add_or_update_project({
+                        "project_name": proj_name.strip(),
+                        "owner_emp_id": owner_id,
+                        "status": status_input,
+                        "progress": progress_input,
+                        "start_date": start_date_input.strftime("%Y-%m-%d"),
+                        "due_date": due_date_input.strftime("%Y-%m-%d")
+                    })
+                    st.success("Project saved successfully.")
+                    st.session_state["refresh_trigger"] = not st.session_state.get("refresh_trigger", False)
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error("Failed to save project.")
+                    st.exception(e)
+
+    st.markdown("---")
+    st.subheader("📄 Export Project PDF")
+    pdf_buffer = io.BytesIO()
+    if st.button("Generate PDF"):
+        try:
+            generate_summary_pdf(
+                buffer=pdf_buffer,
+                total=len(project_df),
+                active=len(project_df[project_df["status"] != "Completed"]),
+                resigned=0,
+                df=filtered_df,
+                title="Project Summary Report"
+            )
+            st.download_button(
+                label="Download PDF",
+                data=pdf_buffer,
+                file_name="project_summary_report.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error("Failed to generate PDF.")
+            st.exception(e)

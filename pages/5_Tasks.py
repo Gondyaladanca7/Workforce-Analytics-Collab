@@ -1,8 +1,12 @@
 # pages/5_Tasks.py
+"""
+Task Management — Workforce Intelligence System
+Assign, edit, delete, and analyze tasks.
+"""
+
 import streamlit as st
 import pandas as pd
 import datetime
-
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
 
@@ -24,6 +28,7 @@ def show():
     # -----------------------
     try:
         emp_df = db.fetch_employees()
+        emp_df = emp_df[emp_df["Status"]=="Active"]  # Only active employees
     except Exception as e:
         st.error("Failed to load employees.")
         st.exception(e)
@@ -37,43 +42,44 @@ def show():
         tasks_df = pd.DataFrame()
 
     # -----------------------
-    # Assign Task
+    # Assign Task (Admin/Manager)
     # -----------------------
-    st.subheader("➕ Assign Task")
-    if not emp_df.empty:
-        with st.form("assign_task", clear_on_submit=True):
-            task_title = st.text_input("Task Title")
-            assignee = st.selectbox(
-                "Assign to",
-                (emp_df["Emp_ID"].astype(str) + " - " + emp_df["Name"]).tolist()
-            )
-            due_date = st.date_input("Due Date", value=datetime.date.today())
-            priority = st.selectbox("Priority", ["Low","Medium","High"])
-            remarks = st.text_area("Remarks")
-            submit = st.form_submit_button("Assign")
+    if role in ["Admin", "Manager"]:
+        st.subheader("➕ Assign Task")
+        if not emp_df.empty:
+            with st.form("assign_task", clear_on_submit=True):
+                task_title = st.text_input("Task Title")
+                assignee = st.selectbox(
+                    "Assign to",
+                    (emp_df["Emp_ID"].astype(str) + " - " + emp_df["Name"]).tolist()
+                )
+                due_date = st.date_input("Due Date", value=datetime.date.today())
+                priority = st.selectbox("Priority", ["Low","Medium","High"])
+                remarks = st.text_area("Remarks")
+                submit = st.form_submit_button("Assign")
 
-            if submit:
-                if not task_title.strip():
-                    st.error("Task title is required.")
-                else:
-                    emp_id = int(assignee.split(" - ")[0])
-                    try:
-                        db.add_task({
-                            "task_name": task_title.strip(),
-                            "emp_id": emp_id,
-                            "assigned_by": username,
-                            "due_date": due_date.strftime("%Y-%m-%d"),
-                            "priority": priority,
-                            "status": "Pending",
-                            "remarks": remarks or ""
-                        })
-                        st.success("Task assigned successfully.")
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error("Failed to assign task.")
-                        st.exception(e)
-    else:
-        st.info("No employees available to assign tasks.")
+                if submit:
+                    if not task_title.strip():
+                        st.error("Task title is required.")
+                    else:
+                        emp_id = int(assignee.split(" - ")[0])
+                        try:
+                            db.add_task({
+                                "task_name": task_title.strip(),
+                                "emp_id": emp_id,
+                                "assigned_by": username,
+                                "due_date": due_date.strftime("%Y-%m-%d"),
+                                "priority": priority,
+                                "status": "Pending",
+                                "remarks": remarks or ""
+                            })
+                            st.success("Task assigned successfully.")
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error("Failed to assign task.")
+                            st.exception(e)
+        else:
+            st.info("No active employees available to assign tasks.")
 
     st.markdown("---")
 
@@ -112,9 +118,9 @@ def show():
     st.markdown("---")
 
     # -----------------------
-    # Edit / Update / Delete Task
+    # Edit / Update / Delete Task (Admin/Manager)
     # -----------------------
-    if not tasks_display.empty:
+    if role in ["Admin", "Manager"] and not tasks_display.empty:
         st.subheader("✏️ Edit / Delete Task")
         task_ids = tasks_display["task_id"].astype(str).tolist()
         sel_task = st.selectbox("Select Task ID", task_ids)

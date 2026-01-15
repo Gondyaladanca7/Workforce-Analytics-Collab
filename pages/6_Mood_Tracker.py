@@ -1,6 +1,12 @@
+# pages/6_Mood_Tracker.py
+"""
+Employee Mood Tracker — Workforce Analytics System
+Log employee mood, view history, visualize trends, and export PDF reports.
+"""
+
 import streamlit as st
-import datetime
 import pandas as pd
+import datetime
 import matplotlib.pyplot as plt
 import io
 
@@ -13,6 +19,9 @@ require_login()
 show_role_badge()
 logout_user()
 
+role = st.session_state.get("role", "Employee")
+username = st.session_state.get("user", "unknown")
+
 st.title("😊 Employee Mood Tracker")
 
 # -------------------------
@@ -21,7 +30,11 @@ st.title("😊 Employee Mood Tracker")
 try:
     employees_df = db.fetch_employees()
 except Exception:
-    employees_df = pd.DataFrame(columns=["Emp_ID", "Name"])
+    employees_df = pd.DataFrame(columns=["Emp_ID", "Name", "Status"])
+
+# Role-based employee visibility
+if role not in ["Admin", "Manager"]:
+    employees_df = employees_df[employees_df["Name"]==username]
 
 emp_list = []
 if not employees_df.empty:
@@ -79,7 +92,7 @@ if not mood_df.empty:
     fig, ax = plt.subplots(figsize=(5,5))
     mood_counts = mood_df["mood"].value_counts()
     ax.pie(mood_counts.values, labels=mood_counts.index, autopct="%1.1f%%", startangle=90)
-    ax.set_title("Mood Distribution")
+    ax.set_title("Overall Mood Distribution")
     st.pyplot(fig)
 
     fig2, ax2 = plt.subplots(figsize=(8,4))
