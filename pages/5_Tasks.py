@@ -30,12 +30,19 @@ def show():
         emp_df = db.fetch_employees()
         emp_df = emp_df[emp_df["Status"]=="Active"]  # Only active employees
     except Exception:
-        emp_df = pd.DataFrame()
+        emp_df = pd.DataFrame(columns=["Emp_ID", "Name", "Status"])
 
     try:
         tasks_df = db.fetch_tasks()
     except Exception:
-        tasks_df = pd.DataFrame()
+        tasks_df = pd.DataFrame(columns=["task_id","task_name","emp_id","assigned_by","due_date","priority","status","remarks"])
+
+    if emp_df.empty:
+        st.info("No active employees available.")
+    if tasks_df.empty:
+        st.info("No tasks available.")
+
+    emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict() if not emp_df.empty else {}
 
     # -----------------------
     # Assign Task (Admin/Manager)
@@ -69,8 +76,8 @@ def show():
                                 "status": "Pending",
                                 "remarks": remarks or ""
                             })
+                            tasks_df = db.fetch_tasks()  # ✅ Safe refresh
                             st.success("✅ Task assigned successfully.")
-                            st.rerun()
                         except Exception as e:
                             st.error("❌ Failed to assign task.")
                             st.exception(e)
@@ -88,8 +95,7 @@ def show():
     filter_priority = st.selectbox("Priority Filter", ["All", "Low", "Medium", "High"])
 
     tasks_display = tasks_df.copy()
-    if not tasks_display.empty and not emp_df.empty:
-        emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict()
+    if not tasks_display.empty:
         tasks_display["Employee"] = tasks_display["emp_id"].map(emp_map).fillna(tasks_display["emp_id"].astype(str))
 
         if search_text:
@@ -107,7 +113,8 @@ def show():
             tasks_display = tasks_display[tasks_display["priority"] == filter_priority]
 
     st.dataframe(
-        tasks_display[["task_id","task_name","Employee","assigned_by","due_date","priority","status","remarks"]],
+        tasks_display[["task_id","task_name","Employee","assigned_by","due_date","priority","status","remarks"]] 
+        if not tasks_display.empty else pd.DataFrame(columns=["task_id","task_name","Employee","assigned_by","due_date","priority","status","remarks"]),
         height=300
     )
 
@@ -152,8 +159,8 @@ def show():
                             "status": e_status,
                             "remarks": e_remarks
                         })
+                        tasks_df = db.fetch_tasks()  # ✅ Safe refresh
                         st.success("✅ Task updated successfully.")
-                        st.rerun()
                     except Exception as e:
                         st.error("❌ Failed to update task.")
                         st.exception(e)
@@ -161,8 +168,8 @@ def show():
                 elif delete_btn:
                     try:
                         db.delete_task(int(sel_task))
+                        tasks_df = db.fetch_tasks()  # ✅ Safe refresh
                         st.success("✅ Task deleted successfully.")
-                        st.rerun()
                     except Exception as e:
                         st.error("❌ Failed to delete task.")
                         st.exception(e)

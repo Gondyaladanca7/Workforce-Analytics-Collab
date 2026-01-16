@@ -29,11 +29,18 @@ logout_user()
 # -------------------------
 try:
     emp_df = db.fetch_employees()
+except Exception:
+    emp_df = pd.DataFrame(columns=["Emp_ID","Name","Status"])
+
+try:
     attendance_df = db.fetch_attendance()
-except Exception as e:
-    st.error("Failed to load required data.")
-    st.exception(e)
-    st.stop()
+except Exception:
+    attendance_df = pd.DataFrame(columns=["emp_id","date","check_in","check_out","status"])
+
+if emp_df.empty:
+    st.info("No employee data available.")
+if attendance_df.empty:
+    st.info("No attendance records found.")
 
 emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict()
 
@@ -67,11 +74,10 @@ if role == "Admin":
                 check_out=check_out.strftime("%H:%M:%S"),
                 status=status
             )
-            # ✅ Safe refresh without rerun
-            attendance_df = db.fetch_attendance()
-            st.success("Attendance logged successfully ✅")
+            attendance_df = db.fetch_attendance()  # safe refresh
+            st.success("✅ Attendance logged successfully")
         except Exception as e:
-            st.error("Failed to log attendance")
+            st.error("❌ Failed to log attendance")
             st.exception(e)
 
 # -------------------------
@@ -80,34 +86,24 @@ if role == "Admin":
 st.divider()
 st.subheader("📅 Attendance History")
 
-start = st.date_input(
-    "Start Date", datetime.date.today() - datetime.timedelta(days=30)
-)
+start = st.date_input("Start Date", datetime.date.today() - datetime.timedelta(days=30))
 end = st.date_input("End Date", datetime.date.today())
 
 att_df = attendance_df.copy()
 if emp_id is not None:
     att_df = att_df[att_df["emp_id"] == emp_id]
 
-att_df = att_df[
-    (att_df["date"] >= pd.to_datetime(start)) &
-    (att_df["date"] <= pd.to_datetime(end))
-]
-
-if att_df.empty:
-    st.info("No attendance records found.")
-else:
-    att_df["Employee"] = att_df["emp_id"].map(emp_map)
+if not att_df.empty:
+    att_df["Employee"] = att_df["emp_id"].map(emp_map).fillna(att_df["emp_id"].astype(str))
     att_df["Date"] = pd.to_datetime(att_df["date"])
-
-    st.dataframe(
-        att_df[["Employee", "Date", "check_in", "check_out", "status"]]
-        .sort_values("Date", ascending=False),
-        use_container_width=True
-    )
+    att_df_display = att_df[["Employee","Date","check_in","check_out","status"]].sort_values("Date", ascending=False)
+    st.dataframe(att_df_display, use_container_width=True)
 
     st.subheader("📊 Attendance Analytics")
-    st.bar_chart(att_df["status"].value_counts())
+    if not att_df.empty:
+        st.bar_chart(att_df["status"].value_counts())
+else:
+    st.info("No attendance records found for the selected criteria.")
 
 # -------------------------
 # Master PDF Export
@@ -137,10 +133,11 @@ if role in allowed_roles_for_pdf:
                 mime="application/pdf",
             )
         except Exception as e:
-            st.error("Failed to generate master PDF.")
+            st.error("❌ Failed to generate master PDF.")
             st.exception(e)
 else:
     st.info("PDF download available for Admin, Manager, HR only.")
+
 # -------------------------
 # Import CSV (Admin Only)
 # -------------------------
@@ -150,10 +147,10 @@ if role in ["Admin", "Manager", "HR"]:
     if uploaded_file:
         try:
             df_csv = pd.read_csv(uploaded_file)
-            # Validate required columns
             required_cols = ["emp_id","date","check_in","check_out","status"]
             if all(col in df_csv.columns for col in required_cols):
-                db.bulk_add_attendance(df_csv)  # You need to create this in db.py
+                db.bulk_add_attendance(df_csv)
+                attendance_df = db.fetch_attendance()  # refresh
                 st.success("✅ Attendance imported successfully!")
             else:
                 st.error(f"CSV missing required columns: {required_cols}")

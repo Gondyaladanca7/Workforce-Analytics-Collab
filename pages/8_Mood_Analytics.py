@@ -27,64 +27,78 @@ def show():
         attendance_df = db.fetch_attendance()
         projects_df = db.fetch_projects()
         notifications_df = pd.DataFrame()
-        for emp in emp_df["Emp_ID"]:
-            notif = db.fetch_notifications(emp)
-            if not notif.empty:
-                notifications_df = pd.concat([notifications_df, notif], ignore_index=True)
+        if not emp_df.empty:
+            for emp in emp_df["Emp_ID"]:
+                notif = db.fetch_notifications(emp)
+                if not notif.empty:
+                    notifications_df = pd.concat([notifications_df, notif], ignore_index=True)
     except Exception as e:
         st.error("Failed to load required data.")
         st.exception(e)
-        return
+        mood_df = pd.DataFrame()
+        emp_df = pd.DataFrame()
+        attendance_df = pd.DataFrame()
+        projects_df = pd.DataFrame()
+        notifications_df = pd.DataFrame()
 
-    if mood_df.empty or emp_df.empty:
-        st.info("No mood or employee data available.")
-        return
+    # ------------------------- Defaults if empty -------------------------
+    if mood_df.empty:
+        mood_df = pd.DataFrame(columns=["emp_id","mood","remarks","log_date"])
+    if emp_df.empty:
+        emp_df = pd.DataFrame(columns=["Emp_ID","Name","Status"])
+    if attendance_df.empty:
+        attendance_df = pd.DataFrame(columns=["emp_id","date","check_in","check_out","status"])
+    if projects_df.empty:
+        projects_df = pd.DataFrame(columns=["project_id","name","assigned_to","status","start_date","end_date"])
 
     # ------------------------- Map Employees -------------------------
-    emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict()
+    emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict() if not emp_df.empty else {}
     mood_df["Employee"] = mood_df["emp_id"].map(emp_map).fillna(mood_df["emp_id"].astype(str))
     mood_df["DateTime"] = pd.to_datetime(mood_df["log_date"], errors="coerce")
     mood_df["date"] = mood_df["DateTime"].dt.date
 
     # ------------------------- Filters -------------------------
     st.sidebar.header("Filters")
-    users = sorted(mood_df["Employee"].unique())
+    users = sorted(mood_df["Employee"].unique()) if not mood_df.empty else []
     selected_user = st.sidebar.selectbox("Select Employee", ["All"] + users)
-    start_date = st.sidebar.date_input("Start Date", value=mood_df["date"].min())
-    end_date = st.sidebar.date_input("End Date", value=mood_df["date"].max())
+    start_date = st.sidebar.date_input("Start Date", value=mood_df["date"].min() if not mood_df.empty else datetime.date.today())
+    end_date = st.sidebar.date_input("End Date", value=mood_df["date"].max() if not mood_df.empty else datetime.date.today())
     selected_mood = st.sidebar.multiselect(
-        "Select Mood(s)", options=sorted(mood_df["mood"].unique()), default=sorted(mood_df["mood"].unique())
+        "Select Mood(s)", options=sorted(mood_df["mood"].unique()) if not mood_df.empty else [],
+        default=sorted(mood_df["mood"].unique()) if not mood_df.empty else []
     )
 
     filtered_df = mood_df.copy()
-    if selected_user != "All":
+    if selected_user != "All" and not filtered_df.empty:
         filtered_df = filtered_df[filtered_df["Employee"] == selected_user]
-    filtered_df = filtered_df[(filtered_df["date"] >= start_date) & (filtered_df["date"] <= end_date)]
-    filtered_df = filtered_df[filtered_df["mood"].isin(selected_mood)]
+    if not filtered_df.empty:
+        filtered_df = filtered_df[(filtered_df["date"] >= start_date) & (filtered_df["date"] <= end_date)]
+        if selected_mood:
+            filtered_df = filtered_df[filtered_df["mood"].isin(selected_mood)]
 
     if filtered_df.empty:
         st.warning("No mood entries match the selected filters.")
-        return
 
     # ------------------------- Key Metrics -------------------------
     st.subheader("📌 Key Metrics")
     total_entries = len(filtered_df)
     mood_score_map = {"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}
-    avg_mood = filtered_df["mood"].map(mood_score_map).fillna(0).mean()
-    mood_counts = filtered_df["mood"].value_counts()
+    avg_mood = filtered_df["mood"].map(mood_score_map).fillna(0).mean() if not filtered_df.empty else 0
+    unique_employees = filtered_df["Employee"].nunique() if not filtered_df.empty else 0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Entries", total_entries)
     c2.metric("Average Mood (1-4)", f"{avg_mood:.2f}")
-    c3.metric("Unique Employees", filtered_df["Employee"].nunique())
+    c3.metric("Unique Employees", unique_employees)
 
     # ------------------------- Mood Trend -------------------------
     st.markdown("### 📅 Mood Trend Over Time")
-    trend_df = filtered_df.groupby(["date"])["mood"].apply(lambda x: x.map(mood_score_map).mean()).reset_index(name="avg_mood")
-    if not trend_df.empty:
-        trend_fig = px.line(trend_df, x="date", y="avg_mood", markers=True,
-                            title="Average Mood Over Time", labels={"avg_mood":"Average Mood","date":"Date"})
-        st.plotly_chart(trend_fig, use_container_width=True)
+    if not filtered_df.empty:
+        trend_df = filtered_df.groupby(["date"])["mood"].apply(lambda x: x.map(mood_score_map).mean()).reset_index(name="avg_mood")
+        if not trend_df.empty:
+            trend_fig = px.line(trend_df, x="date", y="avg_mood", markers=True,
+                                title="Average Mood Over Time", labels={"avg_mood":"Average Mood","date":"Date"})
+            st.plotly_chart(trend_fig, use_container_width=True)
     else:
         st.info("No trend data to display.")
 
@@ -98,6 +112,7 @@ def show():
 
     # ------------------------- Mood Distribution -------------------------
     st.markdown("### 📊 Mood Distribution")
+    mood_counts = filtered_df["mood"].value_counts() if not filtered_df.empty else pd.Series()
     if not mood_counts.empty:
         dist_fig = px.bar(
             mood_counts.reset_index().rename(columns={"index":"Mood","mood":"Count"}),
@@ -116,7 +131,9 @@ def show():
     # ------------------------- Filtered Data Table -------------------------
     st.markdown("---")
     st.subheader("🔍 Filtered Mood Data")
-    st.dataframe(filtered_df[["Employee","mood","remarks","DateTime"]].sort_values("DateTime", ascending=False), height=400)
+    st.dataframe(filtered_df[["Employee","mood","remarks","DateTime"]].sort_values("DateTime", ascending=False)
+                 if not filtered_df.empty else pd.DataFrame(columns=["Employee","mood","remarks","DateTime"]),
+                 height=400)
 
     # ------------------------- Master PDF -------------------------
     st.subheader("📄 Master Workforce Report PDF")
