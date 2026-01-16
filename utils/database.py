@@ -398,3 +398,101 @@ def fetch_projects():
         df = pd.DataFrame()
     conn.close()
     return df
+# --------------------------
+# BULK INSERT FUNCTIONS (CSV IMPORT)
+# --------------------------
+
+def bulk_add_attendance(df):
+    """
+    Import attendance records from a DataFrame.
+    Required columns: emp_id, date, check_in, check_out, status
+    """
+    import sqlite3
+    conn = sqlite3.connect("workforce.db")
+    cursor = conn.cursor()
+
+    for _, row in df.iterrows():
+        cursor.execute("""
+            INSERT INTO attendance (emp_id, date, check_in, check_out, status)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            int(row['emp_id']),
+            row['date'],
+            row['check_in'],
+            row['check_out'],
+            row['status']
+        ))
+    conn.commit()
+    conn.close()
+
+
+def bulk_add_employees(df):
+    """
+    Import employee records from a DataFrame.
+    Required columns: emp_id, name, role, status
+    """
+    import sqlite3
+    conn = sqlite3.connect("workforce.db")
+    cursor = conn.cursor()
+
+    for _, row in df.iterrows():
+        cursor.execute("""
+            INSERT OR REPLACE INTO employees (Emp_ID, Name, Role, Status)
+            VALUES (?, ?, ?, ?)
+        """, (
+            int(row['emp_id']),
+            row['name'],
+            row['role'],
+            row['status']
+        ))
+    conn.commit()
+    conn.close()
+
+
+def bulk_add_feedback(df):
+    """
+    Import feedback records from a DataFrame.
+    Required columns: sender_id, receiver_id, message, rating, log_date
+    """
+    import sqlite3
+    conn = sqlite3.connect("workforce.db")
+    cursor = conn.cursor()
+
+    for _, row in df.iterrows():
+        cursor.execute("""
+            INSERT INTO feedback (sender_id, receiver_id, message, rating, log_date)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            int(row['sender_id']) if row['sender_id'] else None,
+            int(row['receiver_id']),
+            row['message'],
+            int(row['rating']),
+            row['log_date']
+        ))
+    conn.commit()
+    conn.close()
+
+
+def bulk_add_notifications(df):
+    """
+    Import notifications from a DataFrame.
+    Required columns: id, title, message, type, is_read, created_at
+    """
+    import sqlite3
+    conn = sqlite3.connect("workforce.db")
+    cursor = conn.cursor()
+
+    for _, row in df.iterrows():
+        cursor.execute("""
+            INSERT OR REPLACE INTO notifications (id, title, message, type, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            int(row['id']),
+            row['title'],
+            row['message'],
+            row['type'],
+            int(row['is_read']),
+            row['created_at']
+        ))
+    conn.commit()
+    conn.close()
