@@ -37,55 +37,43 @@ st.title("📊 Workforce Reports")
 # -------------------------
 # Fetch data safely
 # -------------------------
-try:
-    df_employees = db.fetch_employees()
-except Exception:
-    df_employees = pd.DataFrame()
+def safe_fetch(func):
+    try:
+        return func()
+    except Exception:
+        return pd.DataFrame()
 
-try:
-    df_mood = db.fetch_mood_logs()
-except Exception:
-    df_mood = pd.DataFrame()
-
-try:
-    df_attendance = db.fetch_attendance()
-except Exception:
-    df_attendance = pd.DataFrame()
-
-try:
-    df_notifications = db.fetch_notifications(emp_id=st.session_state.get("my_emp_id"))
-except Exception:
-    df_notifications = pd.DataFrame()
-
-try:
-    df_projects = db.fetch_projects()
-except Exception:
-    df_projects = pd.DataFrame()
+df_employees = safe_fetch(db.fetch_employees)
+df_mood = safe_fetch(db.fetch_mood_logs)
+df_attendance = safe_fetch(db.fetch_attendance)
+df_notifications = safe_fetch(lambda: db.fetch_notifications(emp_id=st.session_state.get("my_emp_id")))
+df_projects = safe_fetch(db.fetch_projects)
 
 # -------------------------
-# Filters
+# Filters (Safe)
 # -------------------------
 st.sidebar.header("🔍 Filter Options")
-dept_filter = st.sidebar.selectbox(
-    "Department",
-    ["All"] + sorted(df_employees["Department"].dropna().unique().tolist())
-)
-status_filter = st.sidebar.selectbox(
-    "Status",
-    ["All"] + sorted(df_employees["Status"].dropna().unique().tolist())
-)
-role_filter = st.sidebar.selectbox(
-    "Role",
-    ["All"] + sorted(df_employees["Role"].dropna().unique().tolist())
-)
+
+dept_options = ["All"]
+role_options = ["All"]
+status_options = ["All"]
+
+if not df_employees.empty:
+    dept_options += sorted(df_employees["Department"].dropna().unique().tolist())
+    role_options += sorted(df_employees["Role"].dropna().unique().tolist())
+    status_options += sorted(df_employees["Status"].dropna().unique().tolist())
+
+dept_filter = st.sidebar.selectbox("Department", dept_options)
+role_filter = st.sidebar.selectbox("Role", role_options)
+status_filter = st.sidebar.selectbox("Status", status_options)
 
 filtered_employees = df_employees.copy()
 if dept_filter != "All":
     filtered_employees = filtered_employees[filtered_employees["Department"] == dept_filter]
-if status_filter != "All":
-    filtered_employees = filtered_employees[filtered_employees["Status"] == status_filter]
 if role_filter != "All":
     filtered_employees = filtered_employees[filtered_employees["Role"] == role_filter]
+if status_filter != "All":
+    filtered_employees = filtered_employees[filtered_employees["Status"] == status_filter]
 
 # -------------------------
 # Summary Metrics
@@ -122,11 +110,9 @@ if not filtered_employees.empty and "Gender" in filtered_employees.columns:
     ax.axis("equal")
     ax.set_title("Gender Distribution")
     st.pyplot(fig, use_container_width=True)
-    # gender_fig is not used in PDF anymore
-    # can reuse mood_fig for plotting if needed
 
 salary_fig = None
-if not filtered_employees.empty and "Salary" in filtered_employees.columns and "Department" in filtered_employees.columns:
+if not filtered_employees.empty and all(x in filtered_employees.columns for x in ["Salary","Department"]):
     avg_salary = average_salary_by_dept(filtered_employees)
     fig, ax = plt.subplots(figsize=(8,5))
     sns.barplot(x=avg_salary.index, y=avg_salary.values, palette="pastel", ax=ax)
@@ -135,7 +121,6 @@ if not filtered_employees.empty and "Salary" in filtered_employees.columns and "
     ax.set_title("Average Salary by Department")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
-    # salary_fig is not used in PDF anymore
 
 # -------------------------
 # Download Master PDF
@@ -153,7 +138,7 @@ if role in ["Admin", "Manager", "HR"]:
                 mood_df=df_mood,
                 projects_df=df_projects,
                 notifications_df=df_notifications,
-                mood_fig=dept_fig,       # optional fig
+                mood_fig=dept_fig,
                 project_fig=None,
                 title="Workforce Master Report"
             )

@@ -133,27 +133,4 @@ def show():
 
     st.markdown("---")
 
-    # -------------------------
-    # Export PDF
-    # -------------------------
-    st.subheader("📄 Export Skill Inventory as PDF")
-    pdf_buffer = io.BytesIO()
-    if st.button("Generate PDF"):
-        try:
-            generate_summary_pdf(
-                buffer=pdf_buffer,
-                total=len(emp_df),
-                active=len(emp_df[emp_df["Status"]=="Active"]) if "Status" in emp_df.columns else len(emp_df),
-                resigned=len(emp_df[emp_df["Status"]=="Resigned"]) if "Status" in emp_df.columns else 0,
-                df=filtered_df,
-                title="Employee Skill & Role Report"
-            )
-            st.download_button(
-                label="Download PDF",
-                data=pdf_buffer,
-                file_name="skill_role_report.pdf",
-                mime="application/pdf"
-            )
-        except Exception as e:
-            st.error("Failed to generate PDF.")
-            st.exception(e)
+   

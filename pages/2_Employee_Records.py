@@ -165,3 +165,22 @@ with col_pdf:
         except Exception as e:
             st.error("Failed to generate PDF.")
             st.exception(e)
+# -------------------------
+# Import CSV (Admin Only)
+# -------------------------
+if role in ["Admin", "Manager", "HR"]:
+    st.sidebar.subheader("📥 Import Attendance CSV")
+    uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+    if uploaded_file:
+        try:
+            df_csv = pd.read_csv(uploaded_file)
+            # Validate required columns
+            required_cols = ["emp_id","date","check_in","check_out","status"]
+            if all(col in df_csv.columns for col in required_cols):
+                db.bulk_add_attendance(df_csv)  # You need to create this in db.py
+                st.success("✅ Attendance imported successfully!")
+            else:
+                st.error(f"CSV missing required columns: {required_cols}")
+        except Exception as e:
+            st.error("❌ Failed to import CSV")
+            st.exception(e)

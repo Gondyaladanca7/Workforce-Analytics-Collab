@@ -101,3 +101,5 @@ with st.form("add_employee_form", clear_on_submit=True):
             except Exception as e:
                 st.error("Failed to add employee to database.")
                 st.exception(e)
+# -------------------------
+

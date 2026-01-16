@@ -1,12 +1,20 @@
+# utils/auth.py
+"""
+Authentication & Authorization utilities
+Workforce Intelligence System
+"""
+
 import streamlit as st
-from utils import database as db
 import hashlib
+from utils import database as db
 
 # -------------------------
 # Password Hashing
 # -------------------------
 def hash_password(password: str) -> str:
-    """Return SHA256 hash of the password."""
+    """
+    Return SHA256 hash of the password.
+    """
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
@@ -14,45 +22,48 @@ def hash_password(password: str) -> str:
 # Login Logic
 # -------------------------
 def login(username: str, password: str):
-    """Validate user and setup session_state."""
+    """
+    Validate user credentials and initialize session state.
+    """
     try:
         user = db.get_user_by_username(username)
     except Exception as e:
-        return False, f"DB error: {e}"
+        return False, f"Database error: {e}"
 
     if not user:
         return False, "User not found"
 
-    if hash_password(password) != user.get("password", ""):
+    if hash_password(password) != user.get("password"):
         return False, "Invalid password"
 
-    # Clear old session safely
+    # Clear any previous session data
     st.session_state.clear()
 
     # Set session variables
     st.session_state["logged_in"] = True
-    st.session_state["user"] = user.get("username", "unknown")
-    st.session_state["role"] = user.get("role", "Employee")
+    st.session_state["user"] = user.get("username")
+    st.session_state["role"] = user.get("role")
     st.session_state["user_id"] = user.get("id")
 
-    # Employee ID mapping
+    # Map user → employee safely
     emp_id = None
     try:
         emp_id = db.get_emp_id_by_user_id(user.get("id"))
     except Exception:
-        pass
+        emp_id = None
+
     st.session_state["my_emp_id"] = emp_id
 
     return True, "Login successful"
 
 
 # -------------------------
-# Require Login
+# Require Login (Guard)
 # -------------------------
 def require_login(roles_allowed=None):
     """
-    Ensure the user is logged in and optionally has allowed roles.
-    Use this at the start of each page.
+    Ensures user is logged in.
+    Optionally restricts access to specific roles.
     """
     if not st.session_state.get("logged_in"):
         st.warning("⚠️ Please login to continue")
@@ -72,29 +83,36 @@ def require_login(roles_allowed=None):
 
         st.stop()
 
-    # Role check
-    if roles_allowed and st.session_state.get("role") not in roles_allowed:
-        st.error("❌ Access denied for your role")
-        st.stop()
+    # Role-based access control
+    if roles_allowed:
+        if st.session_state.get("role") not in roles_allowed:
+            st.error("❌ Access denied for your role")
+            st.stop()
 
 
 # -------------------------
 # Logout
 # -------------------------
 def logout_user():
-    """Button in sidebar to logout user."""
+    """
+    Logout button (sidebar).
+    Clears session safely.
+    """
     if st.sidebar.button("Logout"):
         st.session_state.clear()
         st.rerun()
 
 
 # -------------------------
-# Role Badge & Username
+# Role Badge (Sidebar)
 # -------------------------
 def show_role_badge():
-    """Display role and username in sidebar."""
+    """
+    Displays logged-in user and role in sidebar.
+    """
     role = st.session_state.get("role")
     user = st.session_state.get("user")
+
     if role:
         st.sidebar.markdown(f"### 🧑‍💼 Role: `{role}`")
     if user:

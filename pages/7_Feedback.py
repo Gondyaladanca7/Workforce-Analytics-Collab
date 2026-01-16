@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
-from utils.pdf_export import generate_master_report  # ✅ updated PDF
+from utils.pdf_export import generate_master_report
 from utils.analytics import feedback_summary
 
 def show():
@@ -24,6 +24,7 @@ def show():
 
     role = st.session_state.get("role", "Employee")
     username = st.session_state.get("user", "unknown")
+    user_id = db.get_user_by_username(username)["id"] if db.get_user_by_username(username) else None
 
     st.title("💬 Employee Feedback System")
 
@@ -57,12 +58,12 @@ def show():
                 st.error("Please select a receiver and write a message.")
             else:
                 receiver_id = int(receiver.split(" - ")[0])
-                sender_user = db.get_user_by_username(username) if not anonymous else {"id": None}
-                sender_id = sender_user["id"] if sender_user else None
+                sender_id = None if anonymous else user_id
                 try:
                     db.add_feedback(sender_id, receiver_id, message.strip(), rating)
+                    # ✅ Safe refresh without rerun
+                    feedback_df = db.fetch_feedback()
                     st.success("✅ Feedback submitted successfully.")
-                    st.rerun()
                 except Exception as e:
                     st.error("❌ Failed to submit feedback.")
                     st.exception(e)
@@ -102,17 +103,13 @@ def show():
     st.subheader("✏️ Edit / Delete Feedback")
     editable_feedback = feedback_display.copy()
     if role != "Admin":
-        # Users can edit/delete only their own feedback
-        editable_feedback = editable_feedback[editable_feedback["sender_id"]==db.get_user_by_username(username)["id"]]
+        editable_feedback = editable_feedback[editable_feedback["sender_id"] == user_id]
 
     if not editable_feedback.empty:
         feedback_ids = editable_feedback["feedback_id"].astype(str).tolist()
         sel_feedback = st.selectbox("Select Feedback ID", feedback_ids)
         feedback_row = editable_feedback[editable_feedback["feedback_id"] == int(sel_feedback)].iloc[0].to_dict()
 
-        # -------------------------
-        # Edit Form
-        # -------------------------
         with st.form("edit_feedback_form"):
             e_message = st.text_area("Message", value=feedback_row.get("message",""))
             e_rating = st.slider("Rating (1-5)", min_value=1, max_value=5, value=int(feedback_row.get("rating",5)))
@@ -122,8 +119,9 @@ def show():
             if update_btn:
                 try:
                     db.update_feedback(int(sel_feedback), e_message.strip(), e_rating)
+                    # ✅ Safe refresh
+                    feedback_df = db.fetch_feedback()
                     st.success("✅ Feedback updated successfully.")
-                    st.rerun()
                 except Exception as e:
                     st.error("❌ Failed to update feedback.")
                     st.exception(e)
@@ -131,8 +129,9 @@ def show():
             if delete_btn:
                 try:
                     db.delete_feedback(int(sel_feedback))
+                    # ✅ Safe refresh
+                    feedback_df = db.fetch_feedback()
                     st.success("✅ Feedback deleted successfully.")
-                    st.rerun()
                 except Exception as e:
                     st.error("❌ Failed to delete feedback.")
                     st.exception(e)
@@ -145,8 +144,11 @@ def show():
     st.subheader("📊 Feedback Analytics")
     if not feedback_df.empty:
         summary_df = feedback_summary(feedback_df, emp_df)
-        st.bar_chart(summary_df.set_index("Employee")["Avg_Rating"])
-        st.dataframe(summary_df)
+        if not summary_df.empty:
+            st.bar_chart(summary_df.set_index("Employee")["Avg_Rating"])
+            st.dataframe(summary_df)
+        else:
+            st.info("No feedback summary available yet.")
     else:
         st.info("No feedback available yet.")
 
@@ -162,7 +164,7 @@ def show():
                 generate_master_report(
                     buffer=pdf_buffer,
                     employees_df=emp_df,
-                    feedback_df=feedback_df,
+                    notifications_df=feedback_df.rename(columns={"feedback_id":"id"}),
                     title="Employee Feedback Summary Report"
                 )
                 st.download_button(
@@ -174,3 +176,22 @@ def show():
             except Exception as e:
                 st.error("❌ Failed to generate PDF.")
                 st.exception(e)
+# -------------------------
+# Import CSV (Admin Only)
+# -------------------------
+if role in ["Admin", "Manager", "HR"]:
+    st.sidebar.subheader("📥 Import Attendance CSV")
+    uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+    if uploaded_file:
+        try:
+            df_csv = pd.read_csv(uploaded_file)
+            # Validate required columns
+            required_cols = ["emp_id","date","check_in","check_out","status"]
+            if all(col in df_csv.columns for col in required_cols):
+                db.bulk_add_attendance(df_csv)  # You need to create this in db.py
+                st.success("✅ Attendance imported successfully!")
+            else:
+                st.error(f"CSV missing required columns: {required_cols}")
+        except Exception as e:
+            st.error("❌ Failed to import CSV")
+            st.exception(e)

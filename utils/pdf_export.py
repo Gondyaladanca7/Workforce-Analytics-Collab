@@ -1,3 +1,14 @@
+# utils/pdf_export.py
+"""
+PDF Export Utilities — Workforce Intelligence System
+- Safe for empty tables
+- Handles non-ASCII & emoji text
+- Compatible with matplotlib / PNG plots
+"""
+
+import io
+import re
+import pandas as pd
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle,
@@ -6,13 +17,10 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-import io
-import pandas as pd
-import re
 
-# -------------------------------------------------
+# --------------------------
 # SANITIZE TEXT (EMOJI SAFE)
-# -------------------------------------------------
+# --------------------------
 def _sanitize(value):
     if value is None:
         return ""
@@ -22,10 +30,12 @@ def _sanitize(value):
     text = re.sub(r"[^\x00-\x7F]+", " ", text)
     return text.strip()
 
-# -------------------------------------------------
+# --------------------------
 # BUILD SAFE TABLE
-# -------------------------------------------------
-def _build_table(df, header_color):
+# --------------------------
+def _build_table(df, header_color=colors.lightgrey):
+    if df is None or df.empty:
+        return None
     df = df.copy()
     for col in df.columns:
         df[col] = df[col].apply(_sanitize)
@@ -44,61 +54,35 @@ def _build_table(df, header_color):
     ]))
     return table
 
-# -------------------------------------------------
-# PNG IMAGE HANDLER (PLOTLY SAFE)
-# -------------------------------------------------
-def _png_to_image(png_bytes, width=6.5, height=3.2):
-    if not png_bytes:
+# --------------------------
+# CONVERT PNG OR BYTES TO IMAGE
+# --------------------------
+def _png_to_image(png_input, width=6.5, height=3.2):
+    """
+    Accepts BytesIO, bytes, or matplotlib figure converted to PNG.
+    Returns ReportLab Image or None if invalid.
+    """
+    if png_input is None:
         return None
-    if isinstance(png_bytes, bytes):
-        png_bytes = io.BytesIO(png_bytes)
-    return Image(png_bytes, width * inch, height * inch)
 
-# -------------------------------------------------
-# SUMMARY PDF (BACKWARD COMPATIBILITY)
-# -------------------------------------------------
-def generate_summary_pdf(
-    buffer,
-    total=0,
-    active=0,
-    resigned=0,
-    df=None,
-    title="Summary Report"
-):
-    """
-    ⚠️ Compatibility function
-    Used by older pages (Feedback, Mood, Reports, Skills)
-    """
+    if hasattr(png_input, "savefig"):  # matplotlib figure
+        buf = io.BytesIO()
+        png_input.savefig(buf, format="png", bbox_inches='tight')
+        buf.seek(0)
+        return Image(buf, width * inch, height * inch)
 
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36
-    )
+    if isinstance(png_input, bytes):
+        buf = io.BytesIO(png_input)
+        return Image(buf, width * inch, height * inch)
 
-    styles = getSampleStyleSheet()
-    elements = []
+    if isinstance(png_input, io.BytesIO):
+        return Image(png_input, width * inch, height * inch)
 
-    elements.append(Paragraph(title, styles["Title"]))
-    elements.append(Spacer(1, 20))
+    return None
 
-    elements.append(Paragraph(f"Total Records: {total}", styles["Normal"]))
-    elements.append(Paragraph(f"Active: {active}", styles["Normal"]))
-    elements.append(Paragraph(f"Closed / Resigned: {resigned}", styles["Normal"]))
-    elements.append(Spacer(1, 15))
-
-    if df is not None and not df.empty:
-        elements.append(_build_table(df, colors.lightgrey))
-
-    doc.build(elements)
-    buffer.seek(0)
-
-# -------------------------------------------------
-# MASTER PDF GENERATOR (MAIN)
-# -------------------------------------------------
+# --------------------------
+# MASTER PDF GENERATOR
+# --------------------------
 def generate_master_report(
     buffer,
     employees_df=None,
@@ -122,6 +106,7 @@ def generate_master_report(
     styles = getSampleStyleSheet()
     elements = []
 
+    # Title
     title_style = ParagraphStyle(
         name="Title",
         fontSize=20,
@@ -131,49 +116,86 @@ def generate_master_report(
     elements.append(Paragraph(title, title_style))
     elements.append(Spacer(1, 20))
 
+    # Employees Table
     if employees_df is not None and not employees_df.empty:
-        elements.append(Paragraph("Employees", styles["Heading2"]))
-        elements.append(Spacer(1, 10))
-        elements.append(_build_table(employees_df, colors.lightblue))
-        elements.append(PageBreak())
+        table = _build_table(employees_df, colors.lightblue)
+        if table:
+            elements.append(Paragraph("Employees", styles["Heading2"]))
+            elements.append(Spacer(1, 10))
+            elements.append(table)
+            elements.append(PageBreak())
 
+    # Attendance Table
     if attendance_df is not None and not attendance_df.empty:
-        elements.append(Paragraph("Attendance", styles["Heading2"]))
-        elements.append(Spacer(1, 10))
-        elements.append(_build_table(attendance_df, colors.lavender))
-        elements.append(PageBreak())
+        table = _build_table(attendance_df, colors.lavender)
+        if table:
+            elements.append(Paragraph("Attendance", styles["Heading2"]))
+            elements.append(Spacer(1, 10))
+            elements.append(table)
+            elements.append(PageBreak())
 
+    # Mood Analytics
     if mood_df is not None and not mood_df.empty:
+        table = _build_table(mood_df, colors.lightgreen)
         elements.append(Paragraph("Mood Analytics", styles["Heading2"]))
         elements.append(Spacer(1, 10))
-        elements.append(_build_table(mood_df, colors.lightgreen))
-        elements.append(Spacer(1, 15))
+        if table:
+            elements.append(table)
         img = _png_to_image(mood_fig)
         if img:
+            elements.append(Spacer(1, 15))
             elements.append(img)
         elements.append(PageBreak())
 
+    # Projects
     if projects_df is not None and not projects_df.empty:
+        table = _build_table(projects_df, colors.orange)
         elements.append(Paragraph("Projects", styles["Heading2"]))
         elements.append(Spacer(1, 10))
-        elements.append(_build_table(projects_df, colors.orange))
-        elements.append(Spacer(1, 15))
+        if table:
+            elements.append(table)
         img = _png_to_image(project_fig)
         if img:
+            elements.append(Spacer(1, 15))
             elements.append(img)
         elements.append(PageBreak())
 
+    # Notifications Summary
     if notifications_df is not None and not notifications_df.empty:
         elements.append(Paragraph("Notifications Summary", styles["Heading2"]))
         elements.append(Spacer(1, 10))
-
         if "type" in notifications_df.columns:
             summary = notifications_df.groupby("type").size().reset_index(name="Count")
         else:
             summary = notifications_df
-
-        elements.append(_build_table(summary, colors.pink))
+        table = _build_table(summary, colors.pink)
+        if table:
+            elements.append(table)
         elements.append(PageBreak())
+
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+
+# --------------------------
+# LEGACY SUMMARY PDF (FOR COMPATIBILITY)
+# --------------------------
+def generate_summary_pdf(buffer, total=0, active=0, resigned=0, df=None, title="Summary Report"):
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph(title, styles["Title"]))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph(f"Total Records: {total}", styles["Normal"]))
+    elements.append(Paragraph(f"Active: {active}", styles["Normal"]))
+    elements.append(Paragraph(f"Closed / Resigned: {resigned}", styles["Normal"]))
+    elements.append(Spacer(1, 15))
+
+    if df is not None and not df.empty:
+        table = _build_table(df, colors.lightgrey)
+        if table:
+            elements.append(table)
 
     doc.build(elements)
     buffer.seek(0)

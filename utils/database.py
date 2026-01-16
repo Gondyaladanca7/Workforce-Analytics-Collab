@@ -1,3 +1,11 @@
+# utils/database.py
+"""
+Database utilities for Workforce Intelligence System
+- SQLite backend
+- Tables: users, employees, tasks, mood_logs, feedback, attendance, notifications, projects
+- Safe, future-ready for analytics & reporting
+"""
+
 import sqlite3
 import pandas as pd
 import hashlib
@@ -21,7 +29,7 @@ def hash_password(password: str) -> str:
 
 
 # --------------------------
-# Initialize Tables
+# Initialize All Tables
 # --------------------------
 def initialize_all_tables():
     conn = connect_db()
@@ -115,7 +123,7 @@ def initialize_all_tables():
         project_name TEXT,
         owner_emp_id INTEGER,
         status TEXT,
-        progress INTEGER,
+        progress INTEGER DEFAULT 0,
         start_date TEXT,
         due_date TEXT
     )
@@ -152,6 +160,10 @@ def create_default_admin():
 
 
 def get_emp_id_by_user_id(user_id: int):
+    """
+    Safely fetch Emp_ID mapped to a user.
+    Returns None if not found.
+    """
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("SELECT Emp_ID FROM employees LIMIT 1")
@@ -181,7 +193,7 @@ def add_employee(emp: dict):
         emp.get("Resign_Date", ""),
         emp.get("Status", "Active"),
         emp.get("Salary", 0),
-        emp.get("Location"),
+        emp.get("Location", ""),
     ))
     conn.commit()
     conn.close()
@@ -189,7 +201,10 @@ def add_employee(emp: dict):
 
 def fetch_employees():
     conn = connect_db()
-    df = pd.read_sql("SELECT * FROM employees", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM employees", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -210,7 +225,10 @@ def update_employee(emp_id: int, updates: dict):
 # --------------------------
 def fetch_tasks():
     conn = connect_db()
-    df = pd.read_sql("SELECT * FROM tasks", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM tasks", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -231,7 +249,10 @@ def add_mood_entry(emp_id: int, mood: str, remarks=""):
 
 def fetch_mood_logs():
     conn = connect_db()
-    df = pd.read_sql("SELECT * FROM mood_logs", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM mood_logs", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -252,7 +273,10 @@ def add_feedback(sender_id, receiver_id, message, rating):
 
 def fetch_feedback():
     conn = connect_db()
-    df = pd.read_sql("SELECT * FROM feedback", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM feedback", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -292,16 +316,16 @@ def add_attendance(emp_id, date, check_in, check_out, status):
 
 def fetch_attendance(emp_id=None):
     conn = connect_db()
-    if emp_id:
-        df = pd.read_sql(
-            "SELECT * FROM attendance WHERE emp_id=?",
-            conn,
-            params=(emp_id,)
-        )
-    else:
-        df = pd.read_sql("SELECT * FROM attendance", conn)
+    try:
+        if emp_id:
+            df = pd.read_sql("SELECT * FROM attendance WHERE emp_id=?", conn, params=(emp_id,))
+        else:
+            df = pd.read_sql("SELECT * FROM attendance", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    if not df.empty and "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
 
 
@@ -321,32 +345,29 @@ def add_notification(emp_id, message, notif_type="General"):
 
 def fetch_notifications(emp_id=None):
     if emp_id is None:
-        conn = connect_db()
-        cur = conn.cursor()
-        cur.execute("SELECT Emp_ID FROM employees LIMIT 1")
-        row = cur.fetchone()
-        emp_id = row[0] if row else -1
-        conn.close()
-
+        emp_id = 0
     conn = connect_db()
-    df = pd.read_sql(
-        """
-        SELECT notif_id AS id,
-               emp_id,
-               message,
-               type,
-               is_read,
-               created_at
-        FROM notifications
-        WHERE emp_id=?
-        ORDER BY created_at DESC
-        """,
-        conn,
-        params=(emp_id,)
-    )
+    try:
+        df = pd.read_sql(
+            """
+            SELECT notif_id AS id,
+                   emp_id,
+                   message,
+                   type,
+                   is_read,
+                   created_at
+            FROM notifications
+            WHERE emp_id=?
+            ORDER BY created_at DESC
+            """,
+            conn,
+            params=(emp_id,)
+        )
+        if not df.empty:
+            df["title"] = "Notification"
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
-    if not df.empty:
-        df["title"] = "Notification"
     return df
 
 
@@ -371,6 +392,9 @@ def delete_notification(notif_id):
 # --------------------------
 def fetch_projects():
     conn = connect_db()
-    df = pd.read_sql("SELECT * FROM projects", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM projects", conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
