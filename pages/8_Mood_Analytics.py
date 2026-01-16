@@ -7,7 +7,7 @@ import io
 
 from utils.auth import require_login, show_role_badge, logout_user
 from utils import database as db
-from utils.pdf_export import generate_summary_pdf
+from utils.pdf_export import generate_master_report
 
 def show():
     # -------------------------
@@ -20,18 +20,25 @@ def show():
     st.title("📊 Mood Analytics Dashboard")
 
     # -------------------------
-    # Load Mood Data
+    # Load Data
     # -------------------------
     try:
-        mood_df = db.fetch_mood_logs()  # emp_id, mood, log_date, remarks
+        mood_df = db.fetch_mood_logs()
         emp_df = db.fetch_employees()
+        attendance_df = db.fetch_attendance()
+        projects_df = db.fetch_projects()
+        notifications_df = pd.DataFrame()
+        for emp in emp_df["Emp_ID"]:
+            notif = db.fetch_notifications(emp)
+            if not notif.empty:
+                notifications_df = pd.concat([notifications_df, notif], ignore_index=True)
     except Exception as e:
-        st.error("Failed to load mood data or employees.")
+        st.error("Failed to load required data.")
         st.exception(e)
         return
 
     if mood_df.empty or emp_df.empty:
-        st.info("No mood entries or employee data available.")
+        st.info("No mood or employee data available.")
         return
 
     # Map employee names
@@ -51,7 +58,7 @@ def show():
     start_date = st.sidebar.date_input("Start Date", value=mood_df["date"].min())
     end_date = st.sidebar.date_input("End Date", value=mood_df["date"].max())
     selected_mood = st.sidebar.multiselect(
-        "Select Mood(s)", options=mood_df["mood"].unique(), default=mood_df["mood"].unique()
+        "Select Mood(s)", options=sorted(mood_df["mood"].unique()), default=sorted(mood_df["mood"].unique())
     )
 
     filtered_df = mood_df.copy()
@@ -69,7 +76,8 @@ def show():
     # -------------------------
     st.subheader("📌 Key Metrics")
     total_entries = len(filtered_df)
-    avg_mood = filtered_df["mood"].map({"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}).mean()
+    mood_score_map = {"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}
+    avg_mood = filtered_df["mood"].map(mood_score_map).mean()
     mood_counts = filtered_df["mood"].value_counts()
 
     c1, c2, c3 = st.columns(3)
@@ -81,16 +89,14 @@ def show():
     # Mood Trend Over Time
     # -------------------------
     st.markdown("### 📅 Mood Trend Over Time")
-    trend_df = filtered_df.groupby(["date"])["mood"].apply(
-        lambda x: x.map({"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}).mean()
-    ).reset_index(name="avg_mood")
+    trend_df = filtered_df.groupby(["date"])["mood"].apply(lambda x: x.map(mood_score_map).mean()).reset_index(name="avg_mood")
     trend_fig = px.line(
         trend_df,
         x="date",
         y="avg_mood",
         markers=True,
         title="Average Mood Over Time",
-        labels={"avg_mood": "Average Mood", "date":"Date"}
+        labels={"avg_mood": "Average Mood", "date": "Date"}
     )
     st.plotly_chart(trend_fig, use_container_width=True)
 
@@ -124,7 +130,7 @@ def show():
     box_fig = px.box(
         filtered_df,
         x="Employee",
-        y=filtered_df["mood"].map({"😊 Happy": 4, "😐 Neutral": 3, "😔 Sad": 2, "😡 Angry": 1}),
+        y=filtered_df["mood"].map(mood_score_map),
         points="all",
         title="Mood Comparison by Employee",
         labels={"y":"Mood (1-4)"}
@@ -142,64 +148,34 @@ def show():
     )
 
     # -------------------------
-    # Export PDF
+    # Master PDF Export (ROLE BASED)
     # -------------------------
-    st.subheader("📄 Export Mood Analytics PDF")
-    pdf_buffer = io.BytesIO()
-    if st.button("Generate Mood Analytics PDF"):
-        try:
-            import matplotlib.pyplot as plt
-            import matplotlib.dates as mdates
-
-            # Trend chart
-            fig_trend, ax1 = plt.subplots(figsize=(6,3))
-            ax1.plot(trend_df["date"], trend_df["avg_mood"], marker='o', color='blue')
-            ax1.set_title("Average Mood Over Time")
-            ax1.set_xlabel("Date")
-            ax1.set_ylabel("Avg Mood (1-4)")
-            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            fig_trend.autofmt_xdate()
-
-            # Weekly stacked
-            fig_weekly, ax2 = plt.subplots(figsize=(6,3))
-            weekly_df.plot(kind="bar", stacked=True, ax=ax2)
-            ax2.set_title("Weekly Mood Counts")
-            ax2.set_xlabel("Week")
-            ax2.set_ylabel("Count")
-
-            # Employee-wise Boxplot
-            fig_box, ax3 = plt.subplots(figsize=(6,3))
-            emp_mood_map = filtered_df.copy()
-            emp_mood_map["mood_val"] = emp_mood_map["mood"].map({"😊 Happy":4,"😐 Neutral":3,"😔 Sad":2,"😡 Angry":1})
-            emp_mood_map.boxplot(column="mood_val", by="Employee", ax=ax3)
-            ax3.set_ylabel("Mood (1-4)")
-            ax3.set_title("Mood Comparison by Employee")
-            plt.suptitle("")
-
-            generate_summary_pdf(
-                buffer=pdf_buffer,
-                total=filtered_df["Employee"].nunique(),
-                active=len(filtered_df),
-                resigned=0,
-                df=filtered_df,
-                mood_df=filtered_df,
-                dept_fig=fig_trend,
-                gender_fig=fig_weekly,
-                salary_fig=fig_box,
-                title="Filtered Mood Analytics Report"
-            )
-
-            st.download_button(
-                label="Download PDF",
-                data=pdf_buffer,
-                file_name="mood_analytics_report.pdf",
-                mime="application/pdf"
-            )
-
-            plt.close(fig_trend)
-            plt.close(fig_weekly)
-            plt.close(fig_box)
-
-        except Exception as e:
-            st.error("Failed to generate PDF.")
-            st.exception(e)
+    st.subheader("📄 Master Workforce Report PDF")
+    allowed_roles_for_pdf = ["Admin", "Manager", "HR"]
+    if st.session_state.get("role") in allowed_roles_for_pdf:
+        if st.button("Download Master PDF"):
+            pdf_buffer = io.BytesIO()
+            try:
+                generate_master_report(
+                    buffer=pdf_buffer,
+                    employees_df=emp_df,
+                    attendance_df=attendance_df,
+                    mood_df=filtered_df,  # pass filtered mood only
+                    projects_df=projects_df,
+                    notifications_df=notifications_df,
+                    dept_fig=None,
+                    mood_fig=None,
+                    project_fig=None,
+                    title="Master Workforce Report"
+                )
+                st.download_button(
+                    "Download PDF",
+                    pdf_buffer,
+                    "workforce_master_report.pdf",
+                    "application/pdf",
+                )
+            except Exception as e:
+                st.error("Failed to generate master PDF.")
+                st.exception(e)
+    else:
+        st.info("PDF download available for Admin, Manager, and HR only.")
