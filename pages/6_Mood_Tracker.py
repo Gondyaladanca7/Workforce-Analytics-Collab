@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import io
 
 from utils import database as db
-from utils.pdf_export import generate_summary_pdf
+from utils.pdf_export import generate_master_report  # ✅ use updated PDF generator
 from utils.auth import require_login, show_role_badge, logout_user
 
 st.set_page_config(page_title="Mood Tracker", page_icon="😊", layout="wide")
@@ -34,7 +34,7 @@ except Exception:
 
 # Role-based employee visibility
 if role not in ["Admin", "Manager"]:
-    employees_df = employees_df[employees_df["Name"]==username]
+    employees_df = employees_df[employees_df["Name"] == username]
 
 emp_list = []
 if not employees_df.empty:
@@ -44,24 +44,26 @@ emp_choice = st.selectbox("Select Employee", options=emp_list)
 emp_id = int(emp_choice.split(" - ")[0]) if emp_choice else None
 
 # -------------------------
-# Log Mood
+# Log Mood (FORM)
 # -------------------------
-mood_choice = st.radio(
-    "Today's Mood", ["😊 Happy", "😐 Neutral", "😔 Sad", "😡 Angry"], horizontal=True
-)
-remarks = st.text_input("Optional remarks")
+with st.form("log_mood_form", clear_on_submit=True):
+    mood_choice = st.radio(
+        "Today's Mood", ["😊 Happy", "😐 Neutral", "😔 Sad", "😡 Angry"], horizontal=True
+    )
+    remarks = st.text_input("Optional remarks")
+    submit_mood = st.form_submit_button("Log Mood")
 
-if st.button("Log Mood"):
-    if emp_id:
-        try:
-            db.add_mood_entry(emp_id=emp_id, mood=mood_choice, remarks=remarks or "")
-            st.success(f"Mood '{mood_choice}' logged for {emp_choice.split(' - ')[1]}")
-            st.session_state["refresh_trigger"] = not st.session_state.get("refresh_trigger", False)
-        except Exception as e:
-            st.error("Failed to log mood.")
-            st.exception(e)
-    else:
-        st.warning("Select an employee first.")
+    if submit_mood:
+        if emp_id:
+            try:
+                db.add_mood_entry(emp_id=emp_id, mood=mood_choice, remarks=remarks or "")
+                st.success(f"Mood '{mood_choice}' logged for {emp_choice.split(' - ')[1]}")
+                st.rerun()
+            except Exception as e:
+                st.error("❌ Failed to log mood.")
+                st.exception(e)
+        else:
+            st.warning("Select an employee first.")
 
 st.markdown("---")
 
@@ -81,7 +83,7 @@ try:
             height=360
         )
 except Exception as e:
-    st.error("Failed to fetch mood history.")
+    st.error("❌ Failed to fetch mood history.")
     st.exception(e)
 
 # -------------------------
@@ -108,23 +110,22 @@ if not mood_df.empty:
 # -------------------------
 st.subheader("📄 Export Mood Logs as PDF")
 pdf_buffer = io.BytesIO()
-if st.button("Generate Mood PDF"):
-    try:
-        generate_summary_pdf(
-            buffer=pdf_buffer,
-            total=len(employees_df),
-            active=len(employees_df[employees_df["Status"]=="Active"]) if "Status" in employees_df.columns else len(employees_df),
-            resigned=len(employees_df[employees_df["Status"]=="Resigned"]) if "Status" in employees_df.columns else 0,
-            df=employees_df,
-            mood_df=mood_df,
-            title="Employee Mood Summary Report"
-        )
-        st.download_button(
-            label="Download PDF",
-            data=pdf_buffer,
-            file_name="mood_summary_report.pdf",
-            mime="application/pdf"
-        )
-    except Exception as e:
-        st.error("Failed to generate PDF.")
-        st.exception(e)
+with st.form("generate_mood_pdf"):
+    submit_pdf = st.form_submit_button("Generate Mood PDF")
+    if submit_pdf:
+        try:
+            generate_master_report(
+                buffer=pdf_buffer,
+                employees_df=employees_df,
+                mood_df=mood_df,
+                title="Employee Mood Summary Report"
+            )
+            st.download_button(
+                label="Download PDF",
+                data=pdf_buffer,
+                file_name="mood_summary_report.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error("❌ Failed to generate PDF.")
+            st.exception(e)

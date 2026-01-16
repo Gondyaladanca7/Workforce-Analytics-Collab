@@ -1,4 +1,8 @@
 # utils/analytics.py
+"""
+Analytics Utilities — Workforce Intelligence System
+Handles summaries, trends, and options for employees, feedback, mood, tasks, and skills.
+"""
 
 import pandas as pd
 from datetime import datetime
@@ -78,7 +82,7 @@ def feedback_summary(feedback_df: pd.DataFrame, employee_df: pd.DataFrame):
     ).reset_index()
     
     emp_map = employee_df.set_index("Emp_ID")["Name"].to_dict()
-    summary["Employee"] = summary["receiver_id"].map(emp_map)
+    summary["Employee"] = summary["receiver_id"].map(emp_map).fillna("Unknown")
     summary = summary[["Employee", "Avg_Rating", "Feedback_Count"]]
     return summary
 
@@ -92,7 +96,7 @@ def mood_trend(df: pd.DataFrame, freq="W"):
     df: mood logs with columns: emp_id, mood, log_date
     freq: 'W' for weekly, 'M' for monthly
     """
-    if df is None or df.empty:
+    if df is None or df.empty or "log_date" not in df.columns or "mood" not in df.columns:
         return pd.DataFrame(columns=["Period", "Mood", "Count"])
     
     df = df.copy()
@@ -104,13 +108,30 @@ def mood_trend(df: pd.DataFrame, freq="W"):
 
 
 # --------------------------
+# TASK SUMMARY
+# --------------------------
+def task_summary(task_df: pd.DataFrame):
+    """
+    Return task counts by status and priority.
+    """
+    if task_df is None or task_df.empty:
+        return pd.DataFrame(columns=["Status", "Priority", "Count"])
+    
+    df = task_df.copy()
+    df["status"] = df.get("status", "Unknown")
+    df["priority"] = df.get("priority", "Normal")
+    summary = df.groupby(["status", "priority"]).size().reset_index(name="Count")
+    return summary
+
+
+# --------------------------
 # EMPLOYEE OPTIONS FOR FORMS
 # --------------------------
 def employee_options(df: pd.DataFrame):
     """
     Return list of strings: "Emp_ID - Name"
     """
-    if df is None or df.empty:
+    if df is None or df.empty or "Emp_ID" not in df.columns or "Name" not in df.columns:
         return []
     return (df["Emp_ID"].astype(str) + " - " + df["Name"]).tolist()
 
@@ -137,3 +158,16 @@ def role_options(df: pd.DataFrame):
     if df is None or df.empty or "Role" not in df.columns:
         return []
     return sorted(df["Role"].dropna().unique())
+
+
+# --------------------------
+# SKILL OPTIONS
+# --------------------------
+def skill_options(df: pd.DataFrame):
+    """
+    Return sorted unique skills from 'Skills' column (comma or semicolon separated).
+    """
+    if df is None or df.empty or "Skills" not in df.columns:
+        return []
+    all_skills = df["Skills"].dropna().str.replace(";", ",").str.split(",").explode().str.strip()
+    return sorted(all_skills.unique())

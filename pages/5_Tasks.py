@@ -24,21 +24,17 @@ def show():
     st.title("🗂️ Task Management")
 
     # -----------------------
-    # Load Data
+    # Load Data Safely
     # -----------------------
     try:
         emp_df = db.fetch_employees()
         emp_df = emp_df[emp_df["Status"]=="Active"]  # Only active employees
-    except Exception as e:
-        st.error("Failed to load employees.")
-        st.exception(e)
+    except Exception:
         emp_df = pd.DataFrame()
 
     try:
         tasks_df = db.fetch_tasks()
-    except Exception as e:
-        st.error("Failed to load tasks.")
-        st.exception(e)
+    except Exception:
         tasks_df = pd.DataFrame()
 
     # -----------------------
@@ -56,7 +52,7 @@ def show():
                 due_date = st.date_input("Due Date", value=datetime.date.today())
                 priority = st.selectbox("Priority", ["Low","Medium","High"])
                 remarks = st.text_area("Remarks")
-                submit = st.form_submit_button("Assign")
+                submit = st.form_submit_button("Assign Task")
 
                 if submit:
                     if not task_title.strip():
@@ -73,10 +69,10 @@ def show():
                                 "status": "Pending",
                                 "remarks": remarks or ""
                             })
-                            st.success("Task assigned successfully.")
-                            st.experimental_rerun()
+                            st.success("✅ Task assigned successfully.")
+                            st.rerun()
                         except Exception as e:
-                            st.error("Failed to assign task.")
+                            st.error("❌ Failed to assign task.")
                             st.exception(e)
         else:
             st.info("No active employees available to assign tasks.")
@@ -92,7 +88,7 @@ def show():
     filter_priority = st.selectbox("Priority Filter", ["All", "Low", "Medium", "High"])
 
     tasks_display = tasks_df.copy()
-    if not tasks_display.empty and emp_df.shape[0] > 0:
+    if not tasks_display.empty and not emp_df.empty:
         emp_map = emp_df.set_index("Emp_ID")["Name"].to_dict()
         tasks_display["Employee"] = tasks_display["emp_id"].map(emp_map).fillna(tasks_display["emp_id"].astype(str))
 
@@ -156,19 +152,19 @@ def show():
                             "status": e_status,
                             "remarks": e_remarks
                         })
-                        st.success("Task updated successfully.")
-                        st.experimental_rerun()
+                        st.success("✅ Task updated successfully.")
+                        st.rerun()
                     except Exception as e:
-                        st.error("Failed to update task.")
+                        st.error("❌ Failed to update task.")
                         st.exception(e)
 
-                if delete_btn:
+                elif delete_btn:
                     try:
                         db.delete_task(int(sel_task))
-                        st.success("Task deleted successfully.")
-                        st.experimental_rerun()
+                        st.success("✅ Task deleted successfully.")
+                        st.rerun()
                     except Exception as e:
-                        st.error("Failed to delete task.")
+                        st.error("❌ Failed to delete task.")
                         st.exception(e)
 
     st.markdown("---")

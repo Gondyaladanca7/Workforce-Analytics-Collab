@@ -1,5 +1,3 @@
-# utils/database.py
-
 import sqlite3
 import pandas as pd
 import hashlib
@@ -7,30 +5,28 @@ from datetime import datetime
 
 DB_NAME = "workforce.db"
 
+
 # --------------------------
 # DB Connection
 # --------------------------
 def connect_db():
-    """Return a SQLite connection."""
     return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 
 # --------------------------
-# Password Hashing Helper
+# Password Hashing
 # --------------------------
 def hash_password(password: str) -> str:
-    """Return SHA256 hash of a password."""
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 # --------------------------
-# Initialize All Tables
+# Initialize Tables
 # --------------------------
 def initialize_all_tables():
     conn = connect_db()
     cur = conn.cursor()
 
-    # Users (Auth)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +36,6 @@ def initialize_all_tables():
     )
     """)
 
-    # Employees
     cur.execute("""
     CREATE TABLE IF NOT EXISTS employees (
         Emp_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +53,6 @@ def initialize_all_tables():
     )
     """)
 
-    # Tasks
     cur.execute("""
     CREATE TABLE IF NOT EXISTS tasks (
         task_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,24 +62,20 @@ def initialize_all_tables():
         due_date TEXT,
         priority TEXT,
         status TEXT,
-        remarks TEXT,
-        FOREIGN KEY(emp_id) REFERENCES employees(Emp_ID)
+        remarks TEXT
     )
     """)
 
-    # Mood Logs
     cur.execute("""
     CREATE TABLE IF NOT EXISTS mood_logs (
         mood_id INTEGER PRIMARY KEY AUTOINCREMENT,
         emp_id INTEGER,
         mood TEXT,
         remarks TEXT,
-        log_date TEXT,
-        FOREIGN KEY(emp_id) REFERENCES employees(Emp_ID)
+        log_date TEXT
     )
     """)
 
-    # Feedback
     cur.execute("""
     CREATE TABLE IF NOT EXISTS feedback (
         feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,13 +83,10 @@ def initialize_all_tables():
         receiver_id INTEGER,
         message TEXT,
         rating INTEGER,
-        log_date TEXT,
-        FOREIGN KEY(sender_id) REFERENCES employees(Emp_ID),
-        FOREIGN KEY(receiver_id) REFERENCES employees(Emp_ID)
+        log_date TEXT
     )
     """)
 
-    # Attendance
     cur.execute("""
     CREATE TABLE IF NOT EXISTS attendance (
         attendance_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,20 +94,30 @@ def initialize_all_tables():
         date TEXT,
         check_in TEXT,
         check_out TEXT,
-        status TEXT,
-        FOREIGN KEY(emp_id) REFERENCES employees(Emp_ID)
+        status TEXT
     )
     """)
 
-    # Notifications
     cur.execute("""
     CREATE TABLE IF NOT EXISTS notifications (
         notif_id INTEGER PRIMARY KEY AUTOINCREMENT,
         emp_id INTEGER,
         message TEXT,
+        type TEXT DEFAULT 'General',
         is_read INTEGER DEFAULT 0,
-        created_at TEXT,
-        FOREIGN KEY(emp_id) REFERENCES employees(Emp_ID)
+        created_at TEXT
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS projects (
+        project_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_name TEXT,
+        owner_emp_id INTEGER,
+        status TEXT,
+        progress INTEGER,
+        start_date TEXT,
+        due_date TEXT
     )
     """)
 
@@ -129,7 +126,7 @@ def initialize_all_tables():
 
 
 # --------------------------
-# AUTH HELPERS
+# AUTH
 # --------------------------
 def get_user_by_username(username: str):
     conn = connect_db()
@@ -142,22 +139,29 @@ def get_user_by_username(username: str):
 
 
 def create_default_admin():
-    """Create default admin if no users exist."""
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM users")
-    count = cur.fetchone()[0]
-    if count == 0:
-        cur.execute("""
-            INSERT INTO users (username, password, role)
-            VALUES (?, ?, ?)
-        """, ("admin", hash_password("admin123"), "Admin"))
+    if cur.fetchone()[0] == 0:
+        cur.execute(
+            "INSERT INTO users (username,password,role) VALUES (?,?,?)",
+            ("admin", hash_password("admin123"), "Admin")
+        )
     conn.commit()
     conn.close()
 
 
+def get_emp_id_by_user_id(user_id: int):
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("SELECT Emp_ID FROM employees LIMIT 1")
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
 # --------------------------
-# EMPLOYEES CRUD
+# EMPLOYEES
 # --------------------------
 def add_employee(emp: dict):
     conn = connect_db()
@@ -177,7 +181,7 @@ def add_employee(emp: dict):
         emp.get("Resign_Date", ""),
         emp.get("Status", "Active"),
         emp.get("Salary", 0),
-        emp.get("Location")
+        emp.get("Location"),
     ))
     conn.commit()
     conn.close()
@@ -191,45 +195,19 @@ def fetch_employees():
 
 
 def update_employee(emp_id: int, updates: dict):
+    if not updates:
+        return
     conn = connect_db()
     cur = conn.cursor()
-    for k, v in updates.items():
-        cur.execute(f"UPDATE employees SET {k}=? WHERE Emp_ID=?", (v, emp_id))
-    conn.commit()
-    conn.close()
-
-
-def delete_employee(emp_id: int):
-    conn = connect_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM employees WHERE Emp_ID=?", (emp_id,))
+    for key, val in updates.items():
+        cur.execute(f"UPDATE employees SET {key}=? WHERE Emp_ID=?", (val, emp_id))
     conn.commit()
     conn.close()
 
 
 # --------------------------
-# TASKS CRUD
+# TASKS
 # --------------------------
-def add_task(task: dict):
-    conn = connect_db()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO tasks
-        (task_name, emp_id, assigned_by, due_date, priority, status, remarks)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        task.get("task_name"),
-        task.get("emp_id"),
-        task.get("assigned_by"),
-        task.get("due_date"),
-        task.get("priority"),
-        task.get("status", "Pending"),
-        task.get("remarks", "")
-    ))
-    conn.commit()
-    conn.close()
-
-
 def fetch_tasks():
     conn = connect_db()
     df = pd.read_sql("SELECT * FROM tasks", conn)
@@ -237,33 +215,16 @@ def fetch_tasks():
     return df
 
 
-def update_task(task_id: int, updates: dict):
-    conn = connect_db()
-    cur = conn.cursor()
-    for k, v in updates.items():
-        cur.execute(f"UPDATE tasks SET {k}=? WHERE task_id=?", (v, task_id))
-    conn.commit()
-    conn.close()
-
-
-def delete_task(task_id: int):
-    conn = connect_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM tasks WHERE task_id=?", (task_id,))
-    conn.commit()
-    conn.close()
-
-
 # --------------------------
-# MOOD TRACKER
+# MOOD
 # --------------------------
-def add_mood_entry(emp_id: int, mood: str, remarks: str = ""):
+def add_mood_entry(emp_id: int, mood: str, remarks=""):
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO mood_logs (emp_id, mood, remarks, log_date)
-        VALUES (?, ?, ?, ?)
-    """, (emp_id, mood, remarks, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    cur.execute(
+        "INSERT INTO mood_logs (emp_id,mood,remarks,log_date) VALUES (?,?,?,?)",
+        (emp_id, mood, remarks, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
     conn.commit()
     conn.close()
 
@@ -275,26 +236,16 @@ def fetch_mood_logs():
     return df
 
 
-def fetch_mood():
-    df = fetch_mood_logs()
-    if df.empty:
-        return df
-    emp_map = fetch_employees().set_index("Emp_ID")["Name"].to_dict()
-    df["username"] = df["emp_id"].map(emp_map).fillna(df["emp_id"].astype(str))
-    df["date"] = pd.to_datetime(df["log_date"], errors="coerce")
-    return df
-
-
 # --------------------------
 # FEEDBACK
 # --------------------------
-def add_feedback(sender_id: int, receiver_id: int, message: str, rating: int):
+def add_feedback(sender_id, receiver_id, message, rating):
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO feedback (sender_id, receiver_id, message, rating, log_date)
-        VALUES (?, ?, ?, ?, ?)
-    """, (sender_id, receiver_id, message, rating, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    cur.execute(
+        "INSERT INTO feedback (sender_id,receiver_id,message,rating,log_date) VALUES (?,?,?,?,?)",
+        (sender_id, receiver_id, message, rating, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
     conn.commit()
     conn.close()
 
@@ -306,7 +257,18 @@ def fetch_feedback():
     return df
 
 
-def delete_feedback(feedback_id: int):
+def update_feedback(feedback_id, message, rating):
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE feedback SET message=?, rating=? WHERE feedback_id=?",
+        (message, rating, feedback_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_feedback(feedback_id):
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("DELETE FROM feedback WHERE feedback_id=?", (feedback_id,))
@@ -317,13 +279,13 @@ def delete_feedback(feedback_id: int):
 # --------------------------
 # ATTENDANCE
 # --------------------------
-def add_attendance(emp_id: int, date: str, check_in: str, check_out: str, status: str):
+def add_attendance(emp_id, date, check_in, check_out, status):
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO attendance (emp_id, date, check_in, check_out, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, (emp_id, date, check_in, check_out, status))
+    cur.execute(
+        "INSERT INTO attendance (emp_id,date,check_in,check_out,status) VALUES (?,?,?,?,?)",
+        (emp_id, date, check_in, check_out, status)
+    )
     conn.commit()
     conn.close()
 
@@ -331,37 +293,84 @@ def add_attendance(emp_id: int, date: str, check_in: str, check_out: str, status
 def fetch_attendance(emp_id=None):
     conn = connect_db()
     if emp_id:
-        df = pd.read_sql("SELECT * FROM attendance WHERE emp_id=?", conn, params=(emp_id,))
+        df = pd.read_sql(
+            "SELECT * FROM attendance WHERE emp_id=?",
+            conn,
+            params=(emp_id,)
+        )
     else:
         df = pd.read_sql("SELECT * FROM attendance", conn)
     conn.close()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
 
 
 # --------------------------
 # NOTIFICATIONS
 # --------------------------
-def add_notification(emp_id: int, message: str):
+def add_notification(emp_id, message, notif_type="General"):
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO notifications (emp_id, message, created_at)
-        VALUES (?, ?, ?)
-    """, (emp_id, message, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    cur.execute(
+        "INSERT INTO notifications (emp_id,message,type,created_at) VALUES (?,?,?,?)",
+        (emp_id, message, notif_type, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
     conn.commit()
     conn.close()
 
 
-def fetch_notifications(emp_id: int):
+def fetch_notifications(emp_id=None):
+    if emp_id is None:
+        conn = connect_db()
+        cur = conn.cursor()
+        cur.execute("SELECT Emp_ID FROM employees LIMIT 1")
+        row = cur.fetchone()
+        emp_id = row[0] if row else -1
+        conn.close()
+
     conn = connect_db()
-    df = pd.read_sql("SELECT * FROM notifications WHERE emp_id=? ORDER BY created_at DESC", conn, params=(emp_id,))
+    df = pd.read_sql(
+        """
+        SELECT notif_id AS id,
+               emp_id,
+               message,
+               type,
+               is_read,
+               created_at
+        FROM notifications
+        WHERE emp_id=?
+        ORDER BY created_at DESC
+        """,
+        conn,
+        params=(emp_id,)
+    )
     conn.close()
+    if not df.empty:
+        df["title"] = "Notification"
     return df
 
 
-def mark_notification_read(notif_id: int):
+def mark_notification_read(notif_id):
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("UPDATE notifications SET is_read=1 WHERE notif_id=?", (notif_id,))
     conn.commit()
     conn.close()
+
+
+def delete_notification(notif_id):
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM notifications WHERE notif_id=?", (notif_id,))
+    conn.commit()
+    conn.close()
+
+
+# --------------------------
+# PROJECTS
+# --------------------------
+def fetch_projects():
+    conn = connect_db()
+    df = pd.read_sql("SELECT * FROM projects", conn)
+    conn.close()
+    return df

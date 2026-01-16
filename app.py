@@ -12,7 +12,7 @@ import datetime
 import random
 
 # -------------------------
-# Page config (MUST be first Streamlit call)
+# Page config
 # -------------------------
 st.set_page_config(
     page_title="Workforce Intelligence System",
@@ -31,42 +31,42 @@ from utils.auth import require_login, logout_user, show_role_badge
 # -------------------------
 try:
     db.initialize_all_tables()
-    db.create_default_admin()   # 🔑 CRITICAL
+    db.create_default_admin()
 except Exception as e:
     st.error("❌ Database initialization failed")
     st.exception(e)
     st.stop()
 
 # -------------------------
-# Authentication (GLOBAL)
+# Authentication
 # -------------------------
 require_login()
-
 role = st.session_state.get("role", "Employee")
 username = st.session_state.get("user", "Unknown")
 
 # -------------------------
-# Global Sidebar (ONLY ONCE)
+# Sidebar (after login)
 # -------------------------
-with st.sidebar:
-    st.title("🏢 Workforce System")
-    st.write(f"👤 **{username}**")
-    show_role_badge()
-    st.divider()
-    logout_user()   # single logout button ONLY here
+if st.session_state.get("logged_in"):
+    with st.sidebar:
+        st.title("🏢 Workforce System")
+        st.write(f"👤 **{username}**")
+        show_role_badge()
+        st.divider()
+        logout_user()  # single logout button
 
 # -------------------------
-# Load Employees (shared data)
+# Load Employees
 # -------------------------
 try:
     df = db.fetch_employees()
 except Exception as e:
     df = pd.DataFrame()
-    st.error("Failed to load employees.")
+    st.error("❌ Failed to load employees.")
     st.exception(e)
 
 # -------------------------
-# Auto-generate demo employees (first run only)
+# Auto-generate demo employees if DB empty
 # -------------------------
 if df.empty:
     st.info("Generating demo workforce data...")
@@ -103,8 +103,7 @@ if df.empty:
                 "Role": random.choice(roles[dept]),
                 "Skills": ", ".join(random.sample(skills, 3)),
                 "Join_Date": (
-                    datetime.datetime.now()
-                    - datetime.timedelta(days=random.randint(200, 3000))
+                    datetime.datetime.now() - datetime.timedelta(days=random.randint(200, 3000))
                 ).strftime("%Y-%m-%d"),
                 "Resign_Date": "",
                 "Status": "Active",
@@ -121,10 +120,10 @@ if df.empty:
         db.add_employee(row.to_dict())
 
     st.success("✅ Demo workforce created successfully")
-    st.rerun()
+    st.experimental_rerun()
 
 # -------------------------
-# HOME / DASHBOARD PAGE
+# Dashboard Metrics
 # -------------------------
 st.title("📊 Workforce Intelligence Dashboard")
 st.caption("Central overview of workforce data")
@@ -144,5 +143,5 @@ st.dataframe(
 
 st.info(
     "📂 Use the **left sidebar** to navigate modules like Tasks, Attendance, "
-    "Mood Tracker, Projects, Analytics, and more."
+    "Mood Tracker, Projects, Analytics, Feedback, Skills & Roles, and Notifications."
 )
