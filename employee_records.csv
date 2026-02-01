@@ -1,0 +1,82 @@
+Emp_ID,Name,Age,Gender,Department,Role,Skills,Join_Date,Resign_Date,Status,Salary,Location
+1,Chloe,48,Female,Support,Support Executive,"Analytics, JavaScript, Communication",2021-04-23,,Active,52558.0,Delhi
+10,Liam,41,Male,Support,Support Manager,"Power BI, Communication, Analytics",2018-07-10,,Active,38554.0,Delhi
+11,Sophia,45,Female,Marketing,Marketing Manager,"Leadership, Power BI, Python",2022-03-02,,Active,35517.0,Chennai
+12,Sophia,55,Female,Sales,Sales Executive,"Analytics, Communication, Excel",2022-01-02,,Active,91284.0,Hyderabad
+13,John,52,Male,Marketing,Marketing Executive,"SQL, JavaScript, Communication",2020-05-11,,Active,48115.0,Delhi
+14,Ava,53,Female,Finance,Finance Manager,"Communication, Power BI, SQL",2023-07-25,,Active,43152.0,Delhi
+15,Liam,28,Male,Marketing,Marketing Executive,"Python, Power BI, Leadership",2023-01-18,,Active,91181.0,Hyderabad
+16,Sophia,40,Female,Support,Support Manager,"JavaScript, Analytics, Excel",2023-10-14,,Active,44326.0,Hyderabad
+17,Liam,49,Male,HR,HR Manager,"JavaScript, Python, Communication",2017-12-13,,Active,108093.0,Chennai
+18,Alex,22,Male,Marketing,Marketing Manager,"Analytics, JavaScript, Leadership",2020-12-02,,Active,44888.0,Hyderabad
+19,Liam,48,Male,Support,Support Executive,"Analytics, SQL, JavaScript",2019-09-16,,Active,58810.0,Delhi
+2,John,56,Male,Sales,Sales Manager,"Power BI, Analytics, Python",2018-07-06,,Active,53923.0,Chennai
+20,Chloe,43,Female,IT,SysAdmin,"Analytics, SQL, Leadership",2021-08-03,,Active,85172.0,Mumbai
+21,Chloe,46,Female,Sales,Sales Manager,"Python, SQL, Communication",2020-03-22,,Active,91957.0,Mumbai
+22,Ava,41,Female,Marketing,Marketing Executive,"Excel, SQL, Leadership",2024-05-17,,Active,46885.0,Delhi
+23,Liam,44,Male,Sales,Sales Executive,"Leadership, Power BI, SQL",2017-10-17,,Active,36168.0,Chennai
+24,Isabella,33,Female,Sales,Sales Executive,"Python, Analytics, Communication",2024-05-07,,Active,97304.0,Mumbai
+25,Alex,23,Male,IT,Developer,"Power BI, Python, Analytics",2021-02-13,,Active,117964.0,Chennai
+26,Mia,34,Female,HR,HR Manager,"Python, Communication, Analytics",2021-04-16,,Active,79460.0,Hyderabad
+27,Liam,46,Male,Support,Support Manager,"SQL, Analytics, Communication",2020-09-23,,Active,39712.0,Hyderabad
+28,Chris,30,Male,Marketing,Marketing Manager,"JavaScript, Power BI, Analytics",2022-10-07,,Active,32812.0,Hyderabad
+29,John,33,Male,IT,Developer,"Python, Power BI, Analytics",2019-10-04,,Active,107310.0,Chennai
+3,Emma,28,Female,Marketing,Marketing Manager,"Communication, Analytics, Python",2023-02-08,,Active,58499.0,Mumbai
+30,Emma,41,Female,Marketing,Marketing Executive,"Leadership, SQL, JavaScript",2024-09-01,,Active,71565.0,Bangalore
+31,Chloe,54,Female,IT,Developer,"Leadership, Analytics, JavaScript",2020-11-01,,Active,78455.0,Chennai
+32,Isabella,46,Female,Finance,Accountant,"Analytics, Leadership, Communication",2018-11-13,,Active,90019.0,Bangalore
+33,Alex,38,Male,Finance,Accountant,"Communication, Analytics, SQL",2022-11-26,,Active,98238.0,Delhi
+34,David,40,Male,IT,Developer,"Leadership, JavaScript, Communication",2021-10-01,,Active,86513.0,Mumbai
+35,Emma,25,Female,IT,IT Manager,"Excel, JavaScript, SQL",2025-03-30,,Active,83650.0,Mumbai
+36,Chris,41,Male,Sales,Sales Executive,"Communication, Power BI, Python",2019-03-31,,Active,99307.0,Mumbai
+37,Liam,28,Male,Sales,Sales Manager,"SQL, JavaScript, Communication",2018-05-02,,Active,81167.0,Chennai
+38,Chris,44,Male,HR,HR Executive,"Power BI, Analytics, Leadership",2020-10-05,,Active,60964.0,Mumbai
+39,Liam,45,Male,Sales,Sales Manager,"Communication, Analytics, Python",2022-10-17,,Active,118576.0,Bangalore
+4,Michael,53,Male,Support,Support Manager,"Excel, Leadership, Analytics",2023-05-28,,Active,63987.0,Chennai
+40,Mia,60,Female,Support,Support Manager,"Excel, Python, Analytics",2021-05-01,,Active,75521.0,Mumbai
+41,Michael,31,Male,Support,Support Executive,"Excel, JavaScript, Python",2020-02-29,,Active,97800.0,Chennai
+42,Michael,29,Male,IT,IT Manager,"Excel, Python, JavaScript",2023-07-17,,Active,84549.0,Bangalore
+43,Emma,37,Female,Marketing,Marketing Executive,"SQL, JavaScript, Excel",2022-04-06,,Active,90404.0,Bangalore
+44,Ava,41,Female,Support,Support Executive,"Power BI, SQL, JavaScript",2020-06-29,,Active,54465.0,Delhi
+45,Ava,46,Female,IT,IT Manager,"Power BI, SQL, Python",2024-08-16,,Active,59660.0,Bangalore
+46,Liam,55,Male,Finance,Finance Manager,"JavaScript, Excel, Python",2021-05-16,,Active,85832.0,Delhi
+47,Isabella,26,Female,Marketing,Marketing Manager,"SQL, JavaScript, Analytics",2022-12-25,,Active,107258.0,Delhi
+48,Liam,44,Male,HR,HR Manager,"Excel, Communication, JavaScript",2023-06-01,,Active,88982.0,Bangalore
+49,John,60,Male,HR,HR Manager,"Excel, Power BI, SQL",2022-07-17,,Active,85782.0,Delhi
+5,Alex,27,Male,Sales,Sales Executive,"Analytics, Communication, Excel",2018-08-31,,Active,117706.0,Chennai
+50,Liam,46,Male,IT,SysAdmin,"JavaScript, Excel, Power BI",2018-12-02,,Active,54423.0,Bangalore
+51,David,28,Male,Support,Support Executive,"Communication, Python, Leadership",2025-02-22,,Active,76067.0,Hyderabad
+52,Liam,34,Male,HR,HR Manager,"Python, Excel, Analytics",2021-04-27,,Active,115311.0,Hyderabad
+53,John,36,Male,Sales,Sales Executive,"Python, Power BI, Analytics",2025-04-27,,Active,67486.0,Mumbai
+54,Chris,26,Male,Marketing,Marketing Executive,"Communication, Analytics, Leadership",2024-10-09,,Active,83192.0,Chennai
+55,Sophia,58,Female,Finance,Finance Manager,"Python, Communication, Analytics",2022-12-08,,Active,90891.0,Bangalore
+56,Emma,42,Female,HR,HR Executive,"Analytics, Communication, Python",2020-07-30,,Active,50591.0,Chennai
+57,Alex,40,Male,Sales,Sales Executive,"Analytics, Python, Excel",2018-08-12,,Active,96740.0,Hyderabad
+58,Alex,38,Male,Sales,Sales Executive,"Excel, Power BI, SQL",2020-03-20,,Active,108684.0,Bangalore
+59,Chris,38,Male,HR,HR Executive,"JavaScript, Analytics, Excel",2022-07-11,,Active,36268.0,Hyderabad
+6,Sophia,30,Female,IT,SysAdmin,"Analytics, Python, Excel",2021-02-19,,Active,44591.0,Delhi
+60,David,51,Male,Finance,Finance Manager,"Power BI, Leadership, Python",2019-11-03,,Active,107837.0,Bangalore
+61,Alex,47,Male,Finance,Finance Manager,"Excel, Power BI, Communication",2025-03-14,,Active,46311.0,Bangalore
+62,Michael,56,Male,Sales,Sales Manager,"SQL, Python, JavaScript",2024-03-02,,Active,67401.0,Mumbai
+63,Emma,38,Female,HR,HR Manager,"Communication, SQL, Power BI",2024-10-29,,Active,97637.0,Bangalore
+64,Ava,23,Female,HR,HR Manager,"Leadership, Excel, Python",2023-02-28,,Active,83053.0,Chennai
+65,Chris,42,Male,IT,IT Manager,"Python, Communication, SQL",2018-08-12,,Active,72759.0,Chennai
+66,John,46,Male,Finance,Finance Manager,"Excel, JavaScript, SQL",2019-09-03,,Active,60212.0,Delhi
+67,Emma,49,Female,Support,Support Manager,"Power BI, SQL, Analytics",2021-12-01,,Active,96321.0,Delhi
+68,Isabella,25,Female,Marketing,Marketing Executive,"Leadership, Analytics, Python",2023-07-01,,Active,62473.0,Delhi
+69,Emma,22,Female,Marketing,Marketing Manager,"Power BI, JavaScript, SQL",2018-10-11,,Active,55544.0,Chennai
+7,Isabella,25,Female,Sales,Sales Executive,"SQL, Python, Communication",2022-06-14,,Active,114447.0,Delhi
+70,Liam,54,Male,Finance,Finance Manager,"Analytics, Leadership, Excel",2025-03-14,,Active,82275.0,Bangalore
+71,Isabella,33,Female,Marketing,Marketing Executive,"JavaScript, Communication, Analytics",2021-08-03,,Active,72990.0,Bangalore
+72,Michael,23,Male,HR,HR Executive,"Leadership, Communication, Python",2020-02-23,,Active,48393.0,Hyderabad
+73,Michael,25,Male,Marketing,Marketing Manager,"Leadership, SQL, Excel",2024-06-22,,Active,35724.0,Hyderabad
+74,Emma,57,Female,Sales,Sales Manager,"Communication, Excel, SQL",2019-10-06,,Active,103334.0,Chennai
+75,John,40,Male,Finance,Accountant,"Analytics, Communication, Leadership",2025-01-18,,Active,118256.0,Chennai
+76,David,56,Male,Sales,Sales Manager,"Python, Analytics, Excel",2019-03-20,,Active,75935.0,Bangalore
+77,Liam,46,Male,IT,Developer,"Python, Communication, Leadership",2023-12-20,,Active,68682.0,Hyderabad
+78,David,46,Male,Sales,Sales Executive,"Analytics, Python, Excel",2025-01-18,,Active,118064.0,Chennai
+79,Mia,56,Female,Sales,Sales Manager,"Python, SQL, JavaScript",2022-01-23,,Active,81418.0,Bangalore
+8,Mia,39,Female,Sales,Sales Manager,"Analytics, Excel, Leadership",2021-11-28,,Active,80578.0,Mumbai
+80,Chris,28,Male,Marketing,Marketing Executive,"SQL, Power BI, Excel",2019-10-08,,Active,42245.0,Mumbai
+81,dddda,25,Male,HR,NA,NA,2026-01-02,,Active,10000.0,bawada
+9,Mia,38,Female,Sales,Sales Executive,"Excel, JavaScript, Python",2019-10-09,,Active,83638.0,Bangalore
