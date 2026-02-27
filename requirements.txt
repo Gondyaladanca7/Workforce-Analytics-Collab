@@ -26,6 +26,17 @@ fpdf2>=2.7.0
 reportlab>=4.1.0
 
 # ----------------------------
+# AI Integration (Claude API)
+# ----------------------------
+requests>=2.31.0
+anthropic>=0.25.0
+
+# ----------------------------
+# Email Sending
+# ----------------------------
+# smtplib is built-in — no install needed
+
+# ----------------------------
 # Faker data for sample generation
 # ----------------------------
 Faker>=19.0.0
